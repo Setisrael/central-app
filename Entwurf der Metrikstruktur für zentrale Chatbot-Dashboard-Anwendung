@@ -1,0 +1,81 @@
+Jede Chatbot-Instanz sendet zyklisch oder ereignisbasiert Metriken über eine API an die zentrale Anwendung. Die Authentifizierung erfolgt über Sanctum-API-Tokens, instanzspezifisch.
+
+3. Erfasste Datenkategorien
+🔹 A. Usage Metrics (Nutzung)
+| Feld                | Typ      | Beschreibung                            |
+| ------------------- | -------- | --------------------------------------- |
+| `instance_id`       | string   | ID der Chatbot-Instanz                  |
+| `module_code`       | string   | Zugehöriges Lehrmodul                   |
+| `embedding_id`      | string   | ID der verwendeten Embedding Collection |
+| `prompt_tokens`     | int      | Anzahl Input-Tokens                     |
+| `completion_tokens` | int      | Anzahl GPT-Ausgabe-Tokens               |
+| `latency_ms`        | int      | Antwortzeit in Millisekunden            |
+| `status`            | string   | Status der Anfrage (ok / error)         |
+| `model`             | string   | Genutztes GPT-Modell                    |
+| `temperature`       | float    | Modell-Temperatur                       |
+| `conversation_id`   | string   | ID des Gesprächsverlaufs                |
+| `student_id_hash`   | string   | Anonymisierter Nutzer oder Session      |
+| `duration_ms`       | int      | Bearbeitungszeit pro Anfrage            |
+| `timestamp`         | datetime | Zeitpunkt der Anfrage                   |
+
+🔹 B. System Metrics (Serverstatus)
+
+| Feld             | Typ      | Beschreibung                 |
+| ---------------- | -------- | ---------------------------- |
+| `instance_id`    | string   | Zugehörige Chatbot-Instanz   |
+| `server_name`    | string   | Serverkennung                |
+| `cpu_usage`      | float    | CPU-Auslastung in %          |
+| `ram_usage`      | float    | RAM-Verbrauch in MB          |
+| `disk_usage`     | float    | Festplattennutzung in %      |
+| `uptime_seconds` | int      | Betriebsdauer des Servers    |
+| `queue_size`     | int      | Aktuelle Warteschlangenlänge |
+| `timestamp`      | datetime | Zeitpunkt der Messung        |
+
+Beispielhafte JSON-Payloads
+
+{
+  "instance_id": "chatbot_math01",
+  "module_code": "MATH101",
+  "embedding_id": "collection-v2-dbwt",
+  "prompt_tokens": 150,
+  "completion_tokens": 75,
+  "latency_ms": 620,
+  "status": "ok",
+  "model": "gpt-4-1106-preview",
+  "temperature": 0.7,
+  "conversation_id": "conv_34a8",
+  "student_id_hash": "anon_98df1a",
+  "duration_ms": 12400,
+  "timestamp": "2025-05-26T16:00:00Z"
+}
+
+{
+  "instance_id": "chatbot_math01",
+  "server_name": "chatbot-node-2",
+  "cpu_usage": 36.5,
+  "ram_usage": 1024,
+  "disk_usage": 60.3,
+  "uptime_seconds": 342234,
+  "queue_size": 2,
+  "timestamp": "2025-05-26T16:00:00Z"
+}
+
+5. Authentifizierung & Sicherheit
+Jede Instanz erhält ein dediziertes Sanctum-API-Token
+
+Die zentrale App validiert eingehende Anfragen über Bearer-Token
+
+Professores und Admins greifen über ein rollenbasiertes Dashboard zu
+
+6. Beantwortbare Fragestellungen über das Dashboard
+
+| Fragestellung                                   | Ermöglicht durch                         |
+| ----------------------------------------------- | ---------------------------------------- |
+| Welche Embeddings wurden verwendet?             | `embedding_id`                           |
+| Welche Chatbots werden wann genutzt?            | `created_at`, `instance_id`              |
+| Wann sind Studierende besonders aktiv?          | Zeitbasierte Aggregation                 |
+| Wie lange dauern Chats im Schnitt?              | `duration_ms`                            |
+| Wie viele Nutzer sind aktiv?                    | `student_id_hash`, `conversation_id`     |
+| Welche Module sind stärker belastet?            | `module_code`, `request_count`           |
+| Welche Instanzen arbeiten mit veralteten Daten? | Vergleich `embedding_id` mit Upload-Logs |
+
