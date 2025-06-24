@@ -11,32 +11,58 @@
  # stage: test
 #include:
 #- template: Security/SAST.gitlab-ci.yml
-stages:
-  - build
+default:
+  image: docker:27.4.1
+
+  services:
+    - name: docker:27.4.1-dind
+      alias: docker
+
+  before_script:
+    - echo "Login to Docker registry"
+    - ping -c 4 deb.debian.org
+    - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY
+
+workflow:
+  rules:
+    - if: $CI_COMMIT_BRANCH == 'main'
+      when: always
+    - when: never
 
 variables:
-  APP_ENV: production
-  DOCKER_DRIVER: overlay2
-  DOCKER_TLS_CERTDIR: ""
-  COMPOSER_ALLOW_SUPERUSER: 1
+    DOCKER_DRIVER: overlay2
+    REGISTRY: registry.git.fh-aachen.de
+    #BUILD_RUNNER_TAG: build
+    #PUSH_RUNNER_TAG: build
+    DOCKER_TLS_CERTDIR: ""
+    DOCKER_HOST: tcp://docker:2375
+    GITLAB_RUNNER_SERVICE_START_TIMEOUT: "600"
 
-services:
-  - name: docker:dind
-    alias: docker
+stages:
+  - build
+  #- push
 
-before_script:
-  - echo "Login to Docker registry"
-  - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY
-  - apk add --no-cache docker-cli
-  - echo " Setting up GitLab CI"
-
-build:
+.build_image:
   stage: build
   script:
-    - echo "Building Docker image..."
-    - docker build -t registry.gitlab.com/$CI_PROJECT_PATH/central-app:$CI_COMMIT_SHORT_SHA .
-    - docker push registry.gitlab.com/$CI_PROJECT_PATH/central-app:$CI_COMMIT_SHORT_SHA
-  only:
-    - main
+    - docker info --format '{{.ServerVersion}}' || echo "Docker daemon not running"
+   # - docker logs $(docker ps -q -f name=docker) || echo "No Docker service logs available"
+    - docker build -t $CI_REGISTRY_IMAGE/$IMAGE_NAME:$CI_COMMIT_REF_NAME .
+    - docker images
+    - docker push $CI_REGISTRY_IMAGE/$IMAGE_NAME:$CI_COMMIT_REF_NAME
+
+  rules:
+    - changes:
+        - Dockerfile
+        - src/**/*
+  
+
+  
+
+build_chatbot:
+  extends: .build_image
+  variables:
+    IMAGE_NAME: centralApp-ci
+
 
 
