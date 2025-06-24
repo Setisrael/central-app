@@ -34,10 +34,11 @@ class ChatbotRegistrationController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
+            'module_code' => 'required|integer|min:1'
         ]);
 
         $existingUser = User::firstOrCreate(
-            ['name' => $request->name],
+            ['name' => $request->name, 'module_code' => $request->module_code],
             [
                 'email' => 'chatbot_' . Str::slug($request->name) . '@example.com',
                 'password' => bcrypt(Str::random(32)),

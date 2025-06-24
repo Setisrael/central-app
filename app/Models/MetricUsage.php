@@ -28,4 +28,10 @@ class MetricUsage extends Model
     {
         return $this->belongsTo(ChatbotInstance::class);
     }
+
+    public function user()
+    {
+        return $this->belongsTo(User::class, 'user_id');
+    }
+
 }
