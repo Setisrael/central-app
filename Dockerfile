@@ -1,25 +1,71 @@
-FROM php:8.3-fpm
+FROM php:8.3-apache AS web
 
-# Set working directory
-WORKDIR /var/www
+WORKDIR /var/www/html
 
-# Install system dependencies
+ARG UNAME=www-hosted
+ARG UID=1010
+ARG GID=1010
+
+RUN groupadd -g $GID -o $UNAME && \
+    useradd -m -u $UID -g $GID -o -s /bin/bash $UNAME
+
 RUN apt-get update && apt-get install -y \
-    build-essential libpng-dev libjpeg-dev libonig-dev libxml2-dev zip curl unzip git \
+    git \
+    unzip \
+    curl \
+    libsodium-dev \
+    libpng-dev \
+    libjpeg-dev \
+    libfreetype6-dev \
+    libonig-dev \
+    libxml2-dev \
+    zip \
+    libzip-dev \
+    nodejs \
+    npm \
     libpq-dev \
-    && docker-php-ext-install pdo pdo_pgsql mbstring exif pcntl bcmath gd
+    build-essential \
+    bash \
+    wget
 
-# Install Composer
+
+RUN apt-get clean && rm -rf /var/lib/apt/lists/*
+
+RUN a2enmod rewrite ssl && \
+    docker-php-ext-install zip pdo pdo_pgsql bcmath sodium && \
+    docker-php-ext-configure intl && \
+    docker-php-ext-install intl
+
+ENV APACHE_DOCUMENT_ROOT=/var/www/html/public
+
+RUN sed -ri -e 's!/var/www/html!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/sites-available/*.conf && \
+    sed -ri -e 's!/var/www/!${APACHE_DOCUMENT_ROOT}!g' /etc/apache2/apache2.conf /etc/apache2/conf-available/*.conf
+
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
+RUN echo "finished preparing the web php-8.3 image"
 
-# Copy existing application directory
-COPY . /var/www
+FROM web AS appsrc
 
-# Set permissions
-RUN chown -R www-data:www-data /var/www
 
-# Install Laravel dependencies
-RUN composer install --no-dev --optimize-autoloader
+WORKDIR /var/www/html
 
-EXPOSE 9000
-CMD ["php-fpm"]
+# Copy the source code
+COPY . /var/www/html
+
+
+RUN mkdir -p /var/www/html/bootstrap/cache && \
+    chown -R $UID:$GID /var/www/html/ && \
+    rm -rf /var/www/html/vendor && rm -f /var/www/html/composer.lock
+
+USER $UNAME
+
+# Run composer install
+RUN composer install --no-dev --prefer-dist --optimize-autoloader
+
+FROM appsrc AS deployment
+
+#RUN npm i html-truncate && npm install && npm run build
+
+EXPOSE 80 443
+
+CMD ["apache2-foreground"]

@@ -27,7 +27,7 @@ services:
 before_script:
   - echo "Login to Docker registry"
   - docker login -u $CI_REGISTRY_USER -p $CI_REGISTRY_PASSWORD $REGISTRY
-  - apk add --no-cache docker-cli
+ # - apk add --no-cache docker-cli
   - echo " Setting up GitLab CI"
 
 build:
