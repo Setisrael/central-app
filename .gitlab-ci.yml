@@ -55,14 +55,14 @@ stages:
     - changes:
         - Dockerfile
         - src/**/*
-  
 
-  
+
+
 
 build_chatbot:
   extends: .build_image
   variables:
-    IMAGE_NAME: centralApp-ci
+    IMAGE_NAME: centralapp-ci
 
 
 
