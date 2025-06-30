@@ -16,7 +16,8 @@ class ChatbotRegistrationController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'module_code' => 'required|integer|min:1'
+            'module_code' => 'required|integer|min:1',
+            'server_name' => 'required|max:255'
         ]);
 
         $existingUser = User::firstOrCreate(
@@ -37,7 +38,7 @@ class ChatbotRegistrationController extends Controller
             [
                 'name' => $request->name,
                 'module_code' => $request->module_code,
-                'server_name' => $request->get('server_name', 'localhost'),
+                'server_name' => $request->server_name ?? 'localhost',
                 'api_token' => $token,
             ]
         );

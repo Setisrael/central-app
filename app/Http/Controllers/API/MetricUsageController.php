@@ -21,23 +21,6 @@ class MetricUsageController extends Controller
         $saved = [];
 
         foreach ($data as $metric) {
-           /* $validated = validator($metric, [
-               // 'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-                'user_id' => $request->user()->id,
-                'conversation_id' => 'required|string',
-                'embedding_id' => 'nullable|string',
-                'prompt_tokens' => 'required|integer',
-                'completion_tokens' => 'required|integer',
-                'temperature' => 'required|numeric',
-                'model' => 'required|string',
-                'latency_ms' => 'required|integer',
-                'status' => 'required|string',
-                'student_id_hash' => 'required|string',
-                'duration_ms' => 'required|integer',
-                'timestamp' => 'required|date',
-            ])->validate();
-
-            $saved[] = MetricUsage::create($validated);*/
             $validator = validator($metric, [
                 'user_id' => 'required|integer',
                 'conversation_id'     => 'required|string',
@@ -60,7 +43,6 @@ class MetricUsageController extends Controller
 
             $validated = $validator->validated();
             $validated['user_id'] = $request->user()->id;
-            $validated['chatbot_instance_id'] = $chatbotInstance->id;
 
             $saved[] = MetricUsage::create($validated);
         }
