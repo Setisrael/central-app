@@ -21,15 +21,15 @@ class ChatbotInstance extends Model
     {
         return $this->belongsTo(User::class);
     }
-
+// 'user_id', 'user_id' added below after pie chart wasn't showing
     public function metricUsages()
     {
-        return $this->hasMany(MetricUsage::class);
+        return $this->hasMany(MetricUsage::class,'user_id', 'user_id');
     }
 
     public function systemMetrics()
     {
-        return $this->hasMany(SystemMetric::class);
+        return $this->hasMany(SystemMetric::class,'user_id', 'user_id');
     }
 }
 

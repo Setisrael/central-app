@@ -48,4 +48,35 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    // added when startet frontend
+    public function isChatbot(): bool
+    {
+        return $this->is_chatbot === true;
+    }
+
+    public function isHuman(): bool
+    {
+        return $this->is_chatbot === false;
+    }
+
+    public function isAdmin(): bool
+    {
+        return $this->is_admin === true;
+    }
+
+    public function chatbotInstance()
+    {
+        return $this->hasOne(ChatbotInstance::class, 'user_id');
+    }
+
+    public function metricUsages()
+    {
+        return $this->hasMany(MetricUsage::class, 'user_id');
+    }
+
+    public function systemMetrics()
+    {
+        return $this->hasMany(SystemMetric::class, 'user_id');
+    }
 }

@@ -30,37 +30,6 @@ class MetricController extends Controller
 
         $metric = Metric::create($validated);
         return response()->json(['message' => 'Metrics stored', 'id' => $metric->id], 201);
-      /*
-        try {
-            $validated = $request->validate([
-                'instance_id' => 'required|string|max:255',
-                'prompt_tokens' => 'required|integer|min:0',
-                'ram_usage' => 'required|integer|min:0',
-            ]);
-
-            $metric = Metric::create($validated);
-
-            // Minimal, safe logging (optional!)
-            \Log::info('Metric stored', [
-                'instance_id' => $validated['instance_id'],
-                'tokens' => $validated['prompt_tokens'],
-                'ram' => $validated['ram_usage'],
-            ]);
-
-            return response()->json([
-                'message' => 'Metrics stored',
-                'id' => $metric->id
-            ], 201);
-
-        } catch (\Throwable $e) {
-            // 🧠 Catch any weird errors and avoid Monolog recursion
-            \Log::error('Metric storage failed: ' . $e->getMessage());
-
-            return response()->json([
-                'error' => 'Failed to store metrics',
-                'details' => $e->getMessage(),
-            ], 500);
-        }*/
     }
 
     /**

@@ -12,20 +12,12 @@ Request::macro('expectsJson', function () {
     return true;
 });
 
-
-Route::middleware('auth:sanctum')->post('/metrics', [MetricController::class, 'store']);
-//Route::apiResource("metrics", MetricController::class);
-
-/*Route::get('/user', function (Request $request) {
-    return $request->user();
-})->middleware('auth:sanctum');*/
+//Route::middleware('auth:sanctum')->post('/metrics', [MetricController::class, 'store']);
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/metric-usage', [MetricUsageController::class, 'store']);
     Route::post('/system-metrics', [SystemMetricController::class, 'store']);
 });
+
 Route::post('/register-chatbot', [ChatbotRegistrationController::class, 'register']);
 
-Route::get('/ping', function () {
-    return response()->json(['message' => 'pong']);
-});

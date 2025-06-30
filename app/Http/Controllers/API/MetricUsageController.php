@@ -60,6 +60,7 @@ class MetricUsageController extends Controller
 
             $validated = $validator->validated();
             $validated['user_id'] = $request->user()->id;
+            $validated['chatbot_instance_id'] = $chatbotInstance->id;
 
             $saved[] = MetricUsage::create($validated);
         }

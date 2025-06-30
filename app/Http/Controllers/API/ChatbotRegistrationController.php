@@ -3,33 +3,15 @@
 namespace App\Http\Controllers\API;
 
 use App\Models\User;
+use App\Models\ChatbotInstance;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use App\Http\Controllers\Controller;
+use Illuminate\Support\Facades\Log;
 
 
 class ChatbotRegistrationController extends Controller
 {
-    /*public function register(Request $request)
-    {
-        $request->validate([
-            'name' => 'required|string|max:255',
-        ]);
-
-        $user = User::create([
-            'name' => $request->name,
-            'email' => 'chatbot_' . Str::random(10) . '@example.com',
-            'password' => bcrypt(Str::random(32)), // not used for login
-            'is_chatbot' => true, // optional boolean if you want to tag them
-        ]);
-
-        $token = $user->createToken('chatbot')->plainTextToken;
-
-        return response()->json([
-            'chatbot_instance_id' => $user->id,
-            'token' => $token,
-        ]);
-    }*/
     public function register(Request $request)
     {
         $request->validate([
@@ -40,7 +22,7 @@ class ChatbotRegistrationController extends Controller
         $existingUser = User::firstOrCreate(
             ['name' => $request->name, 'module_code' => $request->module_code],
             [
-                'email' => 'chatbot_' . Str::slug($request->name) . '@example.com',
+                'email' => Str::slug($request->name) . '@example.com',
                 'password' => bcrypt(Str::random(32)),
                 'is_chatbot' => true,
             ]
@@ -49,17 +31,16 @@ class ChatbotRegistrationController extends Controller
             ->where('name', 'chatbot')
             ->first();
 
-       /* $existingToken = $existingUser->tokens()
-            ->where('name', 'chatbot')
-            ->first();
-
-        if ($existingToken) {
-            $token = $existingToken->plainTextToken ?? $existingToken->accessToken;
-        } else {
-            $token = $existingUser->createToken('chatbot')->plainTextToken;
-        }*/
         $token = $existingUser->createToken('chatbot')->plainTextToken;
-
+        ChatbotInstance::updateOrCreate(
+            ['user_id' => $existingUser->id],
+            [
+                'name' => $request->name,
+                'module_code' => $request->module_code,
+                'server_name' => $request->get('server_name', 'localhost'),
+                'api_token' => $token,
+            ]
+        );
         return response()->json([
             'chatbot_instance_id' => $existingUser->id,
             'token' => $token,

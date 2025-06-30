@@ -28,7 +28,7 @@
         </div>
     </x-filament::section>
 
-    <x-filament::section heading=" Chatbot Usage Summary">
+    <x-filament::section heading="Chatbot Usage Summary">
         <div class="overflow-auto rounded-xl border border-gray-200 dark:border-gray-800">
             <table class="min-w-full text-sm text-left">
                 <thead class="bg-gray-100 dark:bg-gray-900 text-gray-700 dark:text-gray-300">
