@@ -8,8 +8,8 @@ services:
     ports:
         - "8000:80"
     environment:
-        APP_ENV: local
-        APP_DEBUG: true
+        APP_ENV: production #local
+        APP_DEBUG: false #true
         DB_CONNECTION: pgsql
         DB_HOST: postgres
         DB_PORT: 5432
