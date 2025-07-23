@@ -70,10 +70,14 @@ return [
             'model' => env('AUTH_MODEL', App\Models\User::class),
         ],
 
-        // 'users' => [
-        //     'driver' => 'database',
+        /* 'users' => [
+             'driver' => 'database',
         //     'table' => 'users',
-        // ],
+        // ],*/
+         'chatbot_instances' => [
+             'driver' => 'eloquent',
+             'model' => App\Models\ChatbotInstance::class,
+         ],
     ],
 
     /*

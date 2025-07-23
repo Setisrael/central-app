@@ -9,4 +9,12 @@ use Filament\Resources\Pages\CreateRecord;
 class CreateUser extends CreateRecord
 {
     protected static string $resource = UserResource::class;
+
+    public static function canAccess(array $parameters = []): bool // admin access only
+    {
+        return auth()->check() && auth()->user()->is_admin;
+    }
+
+
 }
+

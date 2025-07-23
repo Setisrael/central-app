@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('chatbot_instances', function (Blueprint $table) {
+        Schema::create('module_user', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique();
-            $table->string('server_name');
+            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('module_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
+
+            $table->unique(['user_id', 'module_id']);
         });
 
     }
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('chatbot_instances');
+        Schema::dropIfExists('module_user');
     }
 };

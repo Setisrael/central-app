@@ -3,6 +3,8 @@
 namespace App\Http\Controllers\API;
 
 use App\Http\Controllers\Controller;
+use App\Models\ChatbotInstance;
+use App\Models\Module;
 use Illuminate\Http\Request;
 use App\Models\MetricUsage;
 use Illuminate\Support\Facades\Log;
@@ -15,36 +17,108 @@ class MetricUsageController extends Controller
     public function store(Request $request)
     {
         $data = $request->input('data') ?? [$request->all()];
-
-
-
         $saved = [];
+// added when trying to add modules to payload
 
-        foreach ($data as $metric) {
+        if ($request->has('modules') && isset($data[0]['chatbot_instance_id'])) {
+            $chatbot = ChatbotInstance::find($data[0]['chatbot_instance_id']);
+
+            if ($chatbot) {
+                $moduleIds = collect($request->modules)->map(function ($module) {
+                    return Module::firstOrCreate(
+                        ['code' => $module['ref_id']],
+                        ['name' => $module['name']]
+                    )->id;
+                });
+
+                $chatbot->modules()->syncWithoutDetaching($moduleIds);
+            }
+        }// ends here
+
+
+        /*foreach ($data as $metric) {
             $validator = validator($metric, [
-                'user_id' => 'required|integer',
+                'chatbot_instance_id' => 'required|integer|exists:chatbot_instances,id',
+                'agent_id' => 'nullable|integer',
+                'module_id' => 'nullable|integer|exists:modules,id',
+                'conversation_id' => 'required|string',
+                'message_id' => 'nullable|integer',
+                'embedding_id' => 'nullable|string',
+                'document_id' => 'nullable|integer',
+                'student_id_hash' => 'required|string',
+                'prompt_tokens' => 'required|integer',
+                'completion_tokens' => 'required|integer',
+                'temperature' => 'nullable|numeric',
+                'model' => 'required|string',
+                'latency_ms' => 'nullable|integer',
+                'duration_ms' => 'nullable|integer',
+                'status' => 'required|string|in:ok,error,timeout,empty',
+                'answer_type' => 'required|string|in:embedding,llm,both,none',
+                'helpful' => 'nullable|boolean',
+                'source' => 'nullable|string',
+                'chatbot_version' => 'nullable|string',
+                'timestamp' => 'required|date',
+            ]);
+
+            if ($validator->fails()) {
+                Log::warning('Validation failed for metric', $validator->errors()->toArray());
+                return response()->json([
+                    'error' => $validator->errors(),], 422);
+               // continue;
+            }
+           // $validated = $validator->validated();
+            //$validated['user_id'] = $request->user()->id;
+
+            $saved[] = MetricUsage::create($validator->validated());
+        }*/
+        foreach ($data as $entry) {
+            $lookup = $entry['lookup'] ?? null;
+            $payload = $entry['data'] ?? null;
+
+            if (!$lookup || !$payload) {
+                Log::warning('Missing lookup or data structure in usage payload');
+                continue;
+            }
+
+            $validator = validator(array_merge($lookup, $payload), [
+                'chatbot_instance_id' => 'required|integer|exists:chatbot_instances,id',
                 'conversation_id'     => 'required|string',
+                'message_id'          => 'required|integer',
+
+                'agent_id'            => 'nullable|integer',
+                'module_id'           => 'nullable|integer|exists:modules,id',
                 'embedding_id'        => 'nullable|string',
+                'document_id'         => 'nullable|integer',
+                'student_id_hash'     => 'required|string',
                 'prompt_tokens'       => 'required|integer',
                 'completion_tokens'   => 'required|integer',
-                'temperature'         => 'required|numeric',
+                'temperature'         => 'nullable|numeric',
                 'model'               => 'required|string',
-                'latency_ms'          => 'required|integer',
-                'status'              => 'required|string',
-                'student_id_hash'     => 'required|string',
-                'duration_ms'         => 'required|integer',
+                'latency_ms'          => 'nullable|integer',
+                'duration_ms'         => 'nullable|integer',
+                'status'              => 'required|string|in:ok,error,timeout,empty',
+                'answer_type'         => 'required|string|in:embedding,llm,both,none',
+                'helpful'             => 'nullable|boolean',
+                'source'              => 'nullable|string',
+                'chatbot_version'     => 'nullable|string',
                 'timestamp'           => 'required|date',
             ]);
 
             if ($validator->fails()) {
                 Log::warning('Validation failed for metric', $validator->errors()->toArray());
-                continue;
+                return response()->json(['error' => $validator->errors()], 422);
             }
 
             $validated = $validator->validated();
-            $validated['user_id'] = $request->user()->id;
 
-            $saved[] = MetricUsage::create($validated);
+            $saved[] = MetricUsage::updateOrCreate(
+                [
+                    'chatbot_instance_id' => $lookup['chatbot_instance_id'],
+                    'conversation_id'     => $lookup['conversation_id'],
+                    'message_id'          => $lookup['message_id'],
+                ],
+                $payload
+            );
         }
 
         return response()->json([
@@ -53,160 +127,4 @@ class MetricUsageController extends Controller
             'ids' => collect($saved)->pluck('id'),
         ], 201);
     }
-    /* public function store(Request $request) // after migrate method
-     {
-         $dataList = $request->input('data');
-
-         if (!is_array($dataList)) {
-             return response()->json(['error' => 'Invalid data payload'], 422);
-         }
-
-         $stored = 0;
-         foreach ($dataList as $data) {
-             $validated = Validator::make($data, [
-                 'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-                 'conversation_id' => 'nullable|string',
-                 'embedding_id' => 'nullable|string',
-                 'prompt_tokens' => 'required|integer',
-                 'completion_tokens' => 'required|integer',
-                 'temperature' => 'nullable|numeric',
-                 'model' => 'required|string',
-                 'latency_ms' => 'nullable|integer',
-                 'status' => 'required|string',
-                 'student_id_hash' => 'required|string',
-                 'duration_ms' => 'nullable|integer',
-                 'timestamp' => 'required|date',
-             ]);
-
-             if ($validated->fails()) {
-                 Log::error(' MetricUsage Validation failed', $validated->errors()->toArray());
-                 continue;
-             }
-
-             MetricUsage::create($validated->validated());
-             $stored++;
-         }
-
-         return response()->json(['message' => " Stored $stored metric(s)"], 201);
-     }*/
-   /* public function storeMultiple(Request $request)
-    {
-        $data = $request->all();
-        if (!is_array($data)) return response()->json(['error' => 'Array of usage metrics expected.'], 422);
-
-        $inserted = [];
-        $errors = [];
-
-        foreach ($data as $entry) {
-            $validator = Validator::make($entry, [
-                'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-                'conversation_id'     => 'nullable|string',
-                'embedding_id'        => 'nullable|string',
-                'prompt_tokens'       => 'required|integer',
-                'completion_tokens'   => 'required|integer',
-                'temperature'         => 'required|numeric',
-                'model'               => 'required|string',
-                'latency_ms'          => 'required|integer',
-                'status'              => 'required|string',
-                'student_id_hash'     => 'nullable|string',
-                'duration_ms'         => 'required|integer',
-                'timestamp'           => 'required|date',
-            ]);
-
-            if ($validator->fails()) {
-                $errors[] = $validator->errors();
-                continue;
-            }
-
-            $inserted[] = MetricUsage::create($entry);
-        }
-
-        return response()->json([
-            'stored' => count($inserted),
-            'errors' => $errors,
-        ], 201);
-    }*/
-
-   /* public function store(Request $request)
-    {
-        try { $validated = $request->validate([
-            'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-            'conversation_id' => 'required|string|max:255',
-            'embedding_id' => 'nullable|string|max:255',
-            'prompt_tokens' => 'required|integer',
-            'completion_tokens' => 'required|integer',
-            'temperature' => 'required|numeric',
-            'model' => 'required|string',
-            'latency_ms' => 'required|integer',
-            'status' => 'required|string',
-            'student_id_hash' => 'required|string',
-            'duration_ms' => 'required|integer',
-            'timestamp' => 'required|date',
-        ]);
-
-
-            $metric = MetricUsage::create($validated);
-            return response()->json(['message' => ' Stored', 'id' => $metric->id], 201);
-        } /*catch (\Throwable $e) {
-            Log::error(' Failed to store MetricUsage: ' . $e->getMessage(), ['data' => $validated]);
-            return response()->json(['error' => 'Failed to store'], 500);
-        }*/
-       /* catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error(' MetricUsage Validation failed', $e->errors());
-            return response()->json(['error' => 'Validation failed', 'messages' => $e->errors()], 422);
-        }
-    }*/
-    /* public function store(Request $request)
-    {
-        $validated = $request->validate([
-            'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-            'conversation_id' => 'nullable|string',
-            'embedding_id' => 'nullable|string',
-            'prompt_tokens' => 'required|integer',
-            'completion_tokens' => 'required|integer',
-            'temperature' => 'required|numeric',
-            'model' => 'required|string',
-            'latency_ms' => 'required|integer',
-            'status' => 'required|string',
-            'student_id_hash' => 'nullable|string',
-            'duration_ms' => 'nullable|integer',
-            'timestamp' => 'required|date',
-        ]);
-
-        $metric = MetricUsage::create($validated);
-
-        return response()->json(['message' => 'Metric stored', 'id' => $metric->id], 201);
-    }*/
-
-    /*public function store(Request $request)
-    {
-        try {
-            $validated = $request->validate([
-                'chatbot_instance_id' => 'required|exists:chatbot_instances,id',
-                'conversation_id' => 'required|string',
-                'embedding_id' => 'required|string',
-                'prompt_tokens' => 'required|integer',
-                'completion_tokens' => 'required|integer',
-                'temperature' => 'required|numeric',
-                'model' => 'required|string',
-                'latency_ms' => 'required|integer',
-                'status' => 'required|string',
-                'student_id_hash' => 'required|string',
-                'duration_ms' => 'required|integer',
-                'timestamp' => 'required|date',
-            ]);
-
-            Log::info(' Valid metric payload received', $validated);
-
-            return response()->json(['message' => 'Metric usage stored (mocked)']);
-        } catch (\Illuminate\Validation\ValidationException $e) {
-            Log::error(' Validation failed:', $e->errors());
-
-            return response()->json([
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
-        }
-    }*/
-
 }

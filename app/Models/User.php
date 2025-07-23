@@ -22,8 +22,7 @@ class User extends Authenticatable
         'name',
         'email',
         'password',
-        'is_chatbot',
-        'module_code'
+        'is_admin',
     ];
 
     /**
@@ -50,7 +49,7 @@ class User extends Authenticatable
     }
 
     // added when startet frontend
-    public function isChatbot(): bool
+    /*public function isChatbot(): bool
     {
         return $this->is_chatbot === true;
     }
@@ -58,14 +57,14 @@ class User extends Authenticatable
     public function isHuman(): bool
     {
         return $this->is_chatbot === false;
-    }
+    }*/
 
     public function isAdmin(): bool
     {
         return $this->is_admin === true;
     }
 
-    public function chatbotInstance()
+   /* public function chatbotInstance()
     {
         return $this->hasOne(ChatbotInstance::class, 'user_id');
     }
@@ -78,5 +77,10 @@ class User extends Authenticatable
     public function systemMetrics()
     {
         return $this->hasMany(SystemMetric::class, 'user_id');
+    }*/
+// pivot table
+    public function modules()
+    {
+        return $this->belongsToMany(Module::class);
     }
 }

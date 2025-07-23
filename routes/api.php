@@ -12,8 +12,6 @@ Request::macro('expectsJson', function () {
     return true;
 });
 
-//Route::middleware('auth:sanctum')->post('/metrics', [MetricController::class, 'store']);
-
 Route::middleware('auth:sanctum')->group(function () {
     Route::post('/metric-usage', [MetricUsageController::class, 'store']);
     Route::post('/system-metrics', [SystemMetricController::class, 'store']);

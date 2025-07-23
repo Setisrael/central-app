@@ -14,14 +14,12 @@ return new class extends Migration
         Schema::create('system_metrics', function (Blueprint $table) {
             $table->id();
             $table->foreignId('chatbot_instance_id')->constrained('chatbot_instances')->onDelete('cascade');
-
             $table->float('cpu_usage');
             $table->float('ram_usage');
             $table->float('disk_usage')->nullable();
             $table->integer('uptime_seconds');
             $table->integer('queue_size')->nullable();
             $table->timestamp('timestamp');
-
             $table->timestamps();
         });
 

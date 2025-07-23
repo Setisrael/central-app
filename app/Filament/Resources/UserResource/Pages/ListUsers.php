@@ -16,4 +16,10 @@ class ListUsers extends ListRecords
             Actions\CreateAction::make(),
         ];
     }
+
+    public static function canAccess(array $parameters = []): bool // admin access only
+    {
+        return auth()->check() && auth()->user()->is_admin;
+    }
+
 }

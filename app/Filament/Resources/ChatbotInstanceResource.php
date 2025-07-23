@@ -18,19 +18,15 @@ class ChatbotInstanceResource extends Resource
     protected static ?string $model = ChatbotInstance::class;
 
     protected static ?string $navigationIcon = 'heroicon-o-rectangle-stack';
-    protected static ?int $navigationSort = 2;
+    protected static ?int $navigationSort = 5;
 
     public static function form(Form $form): Form
     {
         return $form
             ->schema([
-                Forms\Components\TextInput::make('name')->required(),
-                Forms\Components\TextInput::make('module_code')->required(),
+                Forms\Components\TextInput::make('name')->required()->unique(ignoreRecord: true),
                 Forms\Components\TextInput::make('server_name')->required(),
-                Forms\Components\TextInput::make('api_token')->disabled(),
-                Forms\Components\Select::make('user_id')
-                    ->relationship('user', 'name')
-                    ->searchable(),
+               // Forms\Components\TextInput::make('api_token')->disabled(),
             ]);
     }
 
@@ -38,10 +34,8 @@ class ChatbotInstanceResource extends Resource
     {
         return $table
             ->columns([
-                Tables\Columns\TextColumn::make('name'),
-                Tables\Columns\TextColumn::make('module_code'),
-                Tables\Columns\TextColumn::make('server_name'),
-                Tables\Columns\TextColumn::make('user.name')->label('User'),
+                Tables\Columns\TextColumn::make('name')->searchable(),
+                Tables\Columns\TextColumn::make('server_name')->searchable(),
             ])
             ->filters([
                 //

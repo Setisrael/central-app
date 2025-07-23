@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\API;
 
+use App\Models\Module;
 use App\Models\User;
 use App\Models\ChatbotInstance;
 use Illuminate\Http\Request;
@@ -16,34 +17,36 @@ class ChatbotRegistrationController extends Controller
     {
         $request->validate([
             'name' => 'required|string|max:255',
-            'module_code' => 'required|integer|min:1',
-            'server_name' => 'required|max:255'
+            'server_name' => 'required|max:255',
+// added when trying to add modules to payload
+            'modules' => 'nullable|array',
+            'modules.*.ref_id' => 'required_with:modules|integer',
+            'modules.*.name' => 'required_with:modules|string',
         ]);
 
-        $existingUser = User::firstOrCreate(
-            ['name' => $request->name, 'module_code' => $request->module_code],
+        $chatbot = ChatbotInstance::firstOrCreate(
+            ['name' => $request->name ],
             [
-                'email' => Str::slug($request->name) . '@example.com',
-                'password' => bcrypt(Str::random(32)),
-                'is_chatbot' => true,
-            ]
-        );
-        $existingToken = $existingUser->tokens()
-            ->where('name', 'chatbot')
-            ->first();
-
-        $token = $existingUser->createToken('chatbot')->plainTextToken;
-        ChatbotInstance::updateOrCreate(
-            ['user_id' => $existingUser->id],
-            [
-                'name' => $request->name,
-                'module_code' => $request->module_code,
                 'server_name' => $request->server_name ?? 'localhost',
-                'api_token' => $token,
             ]
         );
+
+        // added when trying to add modules to payload
+        if ($request->has('modules')) {
+            $moduleIds = collect($request->modules)->map(function ($module) {
+                return Module::firstOrCreate(
+                    ['code' => $module['ref_id']],
+                    ['name' => $module['name']]
+                )->id;
+            });
+
+            $chatbot->modules()->sync($moduleIds);
+        }  // ends here
+
+        $token = $chatbot->createToken($request->name)->plainTextToken;
+
         return response()->json([
-            'chatbot_instance_id' => $existingUser->id,
+            'chatbot_instance_id' => $chatbot->id,
             'token' => $token,
         ]);
     }

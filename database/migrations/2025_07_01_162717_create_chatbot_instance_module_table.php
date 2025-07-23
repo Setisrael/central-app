@@ -11,11 +11,13 @@ return new class extends Migration
      */
     public function up(): void
     {
-        Schema::create('chatbot_instances', function (Blueprint $table) {
+        Schema::create('chatbot_instance_module', function (Blueprint $table) {
             $table->id();
-            $table->string('name')->unique();
-            $table->string('server_name');
+            $table->foreignId('chatbot_instance_id')->constrained()->cascadeOnDelete();
+            $table->foreignId('module_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
+
+            $table->unique(['chatbot_instance_id', 'module_id']); // Prevent duplicates
         });
 
     }
@@ -25,6 +27,6 @@ return new class extends Migration
      */
     public function down(): void
     {
-        Schema::dropIfExists('chatbot_instances');
+        Schema::dropIfExists('chatbot_instance_module');
     }
 };
