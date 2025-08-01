@@ -20,7 +20,7 @@
             @endforeach
         </select>
     </div>
-        {{-- Summary Statistics --}}
+    {{-- Summary Statistics --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
         <x-filament::card>
             <div class="text-gray-600">Average CPU Usage</div>
@@ -49,16 +49,15 @@
 
     {{-- Charts Section --}}
     <div class="flex flex-col lg:flex-row gap-6 mb-8">
-        {{-- CPU/RAM/Disk Chart --}}
-        <x-filament::card class="flex-1 w-full lg:w-1/2">
+        {{-- Feedback Chart --}}
+        <div class="flex-1 w-full lg:w-1/2">
             @livewire(\App\Filament\Widgets\SystemPerformanceChart::class)
-        </x-filament::card>
+        </div>
 
-        {{-- Load Distribution Pie Chart --}}
-        <x-filament::card class="flex-1 w-full lg:w-1/2">
-            <h3 class="text-lg font-bold mb-4">Current System Load Distribution</h3>
+        {{-- Module Usage Chart --}}
+        <div class="flex-1 w-full lg:w-1/2">
             @livewire(\App\Filament\Widgets\LoadPieChart::class)
-        </x-filament::card>
+        </div>
     </div>
 
     {{-- Recent System Events Table --}}

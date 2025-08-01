@@ -30,15 +30,15 @@ class UserActivityDetails extends Page implements HasTable
         return $table
             ->query(MetricUsage::query()
                 ->where('student_id_hash', $this->student_id_hash)
-                ->when(!auth()->user()->is_admin, fn ($query) => $query->whereHas('chatbotInstance.modules.users', fn ($q) => $q->where('id', auth()->id())))
+                ->when(!auth()->user()->is_admin, fn ($query) => $query->whereHas('chatbotInstance.modules.users', fn ($q) => $q->where('users.id', auth()->id())))
             )
             ->columns([
                 TextColumn::make('timestamp')
                     ->label('Time')
                     ->dateTime(),
-                TextColumn::make('chatbotInstance.name')
-                    ->label('Chatbot Instance'),
-                TextColumn::make('document')
+                TextColumn::make('module_id')
+                    ->label('module'),
+                TextColumn::make('document_id')
                     ->label('Document'),
                 TextColumn::make('helpful')
                     ->label('Helpful')

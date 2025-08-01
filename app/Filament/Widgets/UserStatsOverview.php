@@ -85,6 +85,9 @@ class UserStatsOverview extends BaseWidget
             ->orderByDesc('query_count')
             ->first()?->student_id_hash ?? 'None';
 
+        // Format the student ID for display
+        $mostActiveStudent = $this->formatStudentId($mostActiveStudent);
+
         // Most queried document
         $mostQueriedDocument = $query->clone()
             ->selectRaw('document_id, count(*) as query_count')
@@ -129,6 +132,19 @@ class UserStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-hand-thumb-up')
                 ->color($helpfulRatio >= 70 ? 'success' : ($helpfulRatio >= 50 ? 'warning' : 'danger')),
         ];
+    }
+    /**
+     * Format student ID hash for display (First 6 + Last 3)
+     */
+    protected function formatStudentId(?string $studentHash): string
+    {
+        if (!$studentHash) {
+            return 'None';
+        }
+        if (strlen($studentHash) > 9) {
+            return substr($studentHash, 0, 6) . '...' . substr($studentHash, -3);
+        }
+        return $studentHash;
     }
 
     protected function getFilterDescription(): string

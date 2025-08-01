@@ -65,4 +65,8 @@ class ChatbotInstanceResource extends Resource
             'edit' => Pages\EditChatbotInstance::route('/{record}/edit'),
         ];
     }
+    public static function canAccess(): bool    // hide page
+    {
+        return auth()->check() && auth()->user()->is_admin;
+    }
 }
