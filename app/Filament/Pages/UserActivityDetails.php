@@ -17,7 +17,7 @@ class UserActivityDetails extends Page implements HasTable
     protected static string $view = 'filament.pages.user-activity-details';
     protected static ?string $title = 'Student Activity Details';
     protected static ?string $navigationIcon = 'heroicon-o-user';
-    protected static bool $isDiscovered=false;
+    protected static bool $isDiscovered = false;
     public $student_id_hash;
 
     public function mount($student_id_hash)
@@ -30,14 +30,35 @@ class UserActivityDetails extends Page implements HasTable
         return $table
             ->query(MetricUsage::query()
                 ->where('student_id_hash', $this->student_id_hash)
-                ->when(!auth()->user()->is_admin, fn ($query) => $query->whereHas('chatbotInstance.modules.users', fn ($q) => $q->where('users.id', auth()->id())))
+                ->when(!auth()->user()->is_admin, function ($query) {
+                    // Apply user role restrictions using module_code
+                    $userModuleCodes = \DB::table('module_user')
+                        ->where('user_id', auth()->id())
+                        ->pluck('module_code')
+                        ->toArray();
+
+                    if (!empty($userModuleCodes)) {
+                        return $query->whereIn('module_code', $userModuleCodes);
+                    } else {
+                        // If user has no modules, return empty result
+                        return $query->whereRaw('1 = 0');
+                    }
+                })
             )
             ->columns([
                 TextColumn::make('timestamp')
                     ->label('Time')
                     ->dateTime(),
-                TextColumn::make('module_id')
-                    ->label('module'),
+                TextColumn::make('module_code')
+                    ->label('Module')
+                    ->formatStateUsing(function ($state) {
+                        // Show module name instead of code
+                        if ($state) {
+                            $module = \App\Models\Module::where('code', $state)->first();
+                            return $module ? $module->name : $state;
+                        }
+                        return '-';
+                    }),
                 TextColumn::make('document_id')
                     ->label('Document'),
                 TextColumn::make('helpful')

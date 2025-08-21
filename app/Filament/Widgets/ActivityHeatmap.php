@@ -39,25 +39,25 @@ class ActivityHeatmap extends ChartWidget
         // Start with base query
         $query = MetricUsage::query()->where('timestamp', '>=', $from);
 
-        // Apply user role restrictions
+        // Apply user role restrictions using module_code
         if (!auth()->user()->is_admin) {
-            // Get user's module IDs from the module_user pivot table
-            $userModuleIds = \DB::table('module_user')
+            // Get user's module codes from the module_user pivot table
+            $userModuleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($userModuleIds)) {
-                $query->whereIn('module_id', $userModuleIds);
+            if (!empty($userModuleCodes)) {
+                $query->whereIn('module_code', $userModuleCodes);
             } else {
                 // If user has no modules, return empty result
                 $query->whereRaw('1 = 0');
             }
         }
 
-        // Apply module filter using direct module_id
+        // Apply module filter using module_code
         if ($this->moduleFilter !== 'all') {
-            $query->where('module_id', $this->moduleFilter);
+            $query->where('module_code', $this->moduleFilter);
         }
 
         Log::debug('ActivityHeatmap query', [
@@ -182,7 +182,7 @@ class ActivityHeatmap extends ChartWidget
     {
         $moduleName = 'All Modules';
         if ($this->moduleFilter !== 'all') {
-            $module = Module::find($this->moduleFilter);
+            $module = Module::where('code', $this->moduleFilter)->first();
             $moduleName = $module ? $module->name : 'Unknown Module';
         }
 

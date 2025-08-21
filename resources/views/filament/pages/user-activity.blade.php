@@ -37,8 +37,8 @@
                             wire:model.live="moduleFilter"
                             class="block w-full sm:w-48 border-gray-300 rounded-lg shadow-sm focus:border-blue-500 focus:ring-blue-500 dark:border-gray-600 dark:bg-gray-700 dark:text-white text-sm"
                         >
-                            @foreach ($modules as $id => $name)
-                                <option value="{{ $id }}">{{ $name }}</option>
+                            @foreach ($modules as $code => $name)
+                                <option value="{{ $code }}">{{ $name }}</option>
                             @endforeach
                         </select>
                     </div>

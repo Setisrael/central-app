@@ -37,30 +37,30 @@ class UserStatsOverview extends BaseWidget
         // Start with base query
         $query = MetricUsage::query()->where('timestamp', '>=', $from);
 
-        // Apply user role restrictions
+        // Apply user role restrictions using module_code
         if (!auth()->user()->is_admin) {
-            // Get user's module IDs from the module_user pivot table
-            $userModuleIds = \DB::table('module_user')
+            // Get user's module codes from the module_user pivot table
+            $userModuleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
             Log::debug('Non-admin user module access', [
                 'user_id' => auth()->id(),
-                'user_module_ids' => $userModuleIds,
+                'user_module_codes' => $userModuleCodes,
             ]);
 
-            if (!empty($userModuleIds)) {
-                $query->whereIn('module_id', $userModuleIds);
+            if (!empty($userModuleCodes)) {
+                $query->whereIn('module_code', $userModuleCodes);
             } else {
                 // If user has no modules, return empty result
                 $query->whereRaw('1 = 0');
             }
         }
 
-        // Apply module filter using direct module_id
+        // Apply module filter using module_code
         if ($this->moduleFilter !== 'all') {
-            $query->where('module_id', $this->moduleFilter);
+            $query->where('module_code', $this->moduleFilter);
         }
 
         Log::debug('UserStatsOverview query', [
@@ -133,6 +133,7 @@ class UserStatsOverview extends BaseWidget
                 ->color($helpfulRatio >= 70 ? 'success' : ($helpfulRatio >= 50 ? 'warning' : 'danger')),
         ];
     }
+
     /**
      * Format student ID hash for display (First 6 + Last 3)
      */
@@ -151,7 +152,7 @@ class UserStatsOverview extends BaseWidget
     {
         $moduleName = 'All Modules';
         if ($this->moduleFilter !== 'all') {
-            $module = Module::find($this->moduleFilter);
+            $module = Module::where('code', $this->moduleFilter)->first();
             $moduleName = $module ? $module->name : 'Unknown Module';
         }
 
@@ -169,122 +170,3 @@ class UserStatsOverview extends BaseWidget
         return "📅 {$timeLabel} • 📚 {$moduleName}";
     }
 }
-/*namespace App\Filament\Widgets;
-
-use App\Models\MetricUsage;
-use Filament\Widgets\StatsOverviewWidget as BaseWidget;
-use Filament\Widgets\StatsOverviewWidget\Stat;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\DB;
-
-class UserStatsOverview extends BaseWidget
-{
-    protected static ?string $pollingInterval = null; // Disable polling
-
-    protected function getStats(): array
-    {
-        $timeFilter = $this->filters['timeFilter'] ?? '90days';
-        $instanceFilter = auth()->user()->is_admin ? ($this->filters['instanceFilter'] ?? 'all') : 'all';
-
-        $from = match ($timeFilter) {
-            '1day' => now()->subDay(),
-            '3days' => now()->subDays(3),
-            '5days' => now()->subDays(5),
-            '7days' => now()->subDays(7),
-            '30days' => now()->subDays(30),
-            '90days' => now()->subDays(90),
-            '6months' => now()->subMonths(6),
-            default => now()->subDays(90),
-        };
-
-        $cacheKey = "user_stats_overview_{$timeFilter}_{$instanceFilter}_" . auth()->id();
-        $stats = Cache::remember($cacheKey, now()->addMinutes(5), function () use ($from, $instanceFilter) {
-            // Create a fresh query for each metric to avoid state issues
-            $baseQuery = MetricUsage::query()->where('timestamp', '>=', $from);
-            if (!auth()->user()->is_admin) {
-                \Log::debug('Non-admin user ID:', [auth()->id()]);
-                $baseQuery->whereHas('chatbotInstance.modules.users', function ($q) {
-                    $q->where('users.id', auth()->id());
-                    \Log::debug('whereHas query:', [$q->toSql(), $q->getBindings()]);
-                });
-            }
-            if ($instanceFilter !== 'all' && auth()->user()->is_admin) {
-                $baseQuery->where('chatbot_instance_id', $instanceFilter);
-            }
-
-            \Log::debug('UserStatsOverview query:', [$baseQuery->toSql(), $baseQuery->getBindings()]);
-            \Log::debug('MetricUsage raw data:', [$baseQuery->get()->toArray()]);
-            \Log::debug('ModuleUser pivot data:', [DB::table('module_user')->where('user_id', auth()->id())->get()->toArray()]);
-
-            $activeStudents = (int) $baseQuery->clone()->distinct('student_id_hash')->count('student_id_hash');
-            $totalQueries = (int) $baseQuery->clone()->count('*');
-            $avgQueries = $activeStudents > 0 ? round($totalQueries / $activeStudents, 1) : 0.0;
-
-            $mostActiveStudent = MetricUsage::query()
-                ->where('timestamp', '>=', $from)
-                ->when(!auth()->user()->is_admin, fn ($q) => $q->whereHas('chatbotInstance.modules.users', fn ($q) => $q->where('users.id', auth()->id())))
-                ->when($instanceFilter !== 'all' && auth()->user()->is_admin, fn ($q) => $q->where('chatbot_instance_id', $instanceFilter))
-                ->selectRaw('student_id_hash, count(*) as query_count')
-                ->groupBy('student_id_hash')
-                ->orderByDesc('query_count')
-                ->orderBy('student_id_hash')
-                ->first()?->student_id_hash ?? 'None';
-
-            $mostQueriedDocument = MetricUsage::query()
-                ->where('timestamp', '>=', $from)
-                ->when(!auth()->user()->is_admin, fn ($q) => $q->whereHas('chatbotInstance.modules.users', fn ($q) => $q->where('users.id', auth()->id())))
-                ->when($instanceFilter !== 'all' && auth()->user()->is_admin, fn ($q) => $q->where('chatbot_instance_id', $instanceFilter))
-                ->selectRaw('document_id, count(*) as query_count')
-                ->groupBy('document_id')
-                ->orderByDesc('query_count')
-                ->orderBy('document_id')
-                ->first()?->document_id ?? 'None';
-
-            $helpfulCount = (int) $baseQuery->clone()->where('helpful', true)->count();
-            $notHelpfulCount = (int) $baseQuery->clone()->where('helpful', false)->count();
-            $ratedCount = $helpfulCount + $notHelpfulCount;
-            $helpfulRatio = $ratedCount > 0 ? round(($helpfulCount / $ratedCount) * 100, 1) : 0.0;
-
-            \Log::debug('UserStatsOverview counts:', compact('activeStudents', 'totalQueries', 'helpfulCount', 'notHelpfulCount', 'ratedCount'));
-
-            return compact('activeStudents', 'avgQueries', 'mostActiveStudent', 'mostQueriedDocument', 'helpfulRatio');
-        });
-
-        \Log::debug('UserStatsOverview data:', $stats);
-
-        return [
-            Stat::make('Active Students', $stats['activeStudents']),
-            Stat::make('Avg Queries per Student', $stats['avgQueries']),
-            Stat::make('Most Active Student', $stats['mostActiveStudent']),
-            Stat::make('Most Queried Document', $stats['mostQueriedDocument']),
-            Stat::make('Helpful Ratio', $stats['helpfulRatio'] . '%'),
-        ];
-    }
-
-    protected function getFilters(): ?array
-    {
-        return [
-            'timeFilter' => [
-                'label' => 'Time Range',
-                'options' => [
-                    '1day' => 'Last 1 Day',
-                    '3days' => 'Last 3 Days',
-                    '5days' => 'Last 5 Days',
-                    '7days' => 'Last 7 Days',
-                    '30days' => 'Last 30 Days',
-                    '90days' => 'Last 90 Days',
-                    '6months' => 'Last 6 Months',
-                ],
-                'default' => '90days',
-                'query' => true,
-            ],
-            'instanceFilter' => [
-                'label' => 'Chatbot Instance',
-                'options' => ['all' => 'All'] + \App\Models\ChatbotInstance::pluck('name', 'id')->toArray(),
-                'default' => 'all',
-                'query' => true,
-                'visible' => fn () => auth()->user()->is_admin,
-            ],
-        ];
-    }
-}*/

@@ -25,31 +25,40 @@ class ChatbotRegistrationController extends Controller
         ]);
 
         $chatbot = ChatbotInstance::firstOrCreate(
-            ['name' => $request->name ],
+            ['name' => $request->name],
             [
                 'server_name' => $request->server_name ?? 'localhost',
             ]
         );
 
-        // added when trying to add modules to payload
+        // FIXED: Sync using module codes instead of module IDs
         if ($request->has('modules')) {
-            $moduleIds = collect($request->modules)->map(function ($module) {
-                return Module::firstOrCreate(
+            $moduleCodes = collect($request->modules)->map(function ($module) {
+                // Create or update the module
+                Module::firstOrCreate(
                     ['code' => $module['ref_id']],
                     ['name' => $module['name']]
-                )->id;
+                );
+
+                // Return the code (not the ID) for syncing
+                return $module['ref_id'];
             });
+            $chatbot->modules()->sync($moduleCodes);
 
-            $chatbot->modules()->sync($moduleIds);
-        }  // ends here
+            Log::info('Modules synced for chatbot registration', [
+                'chatbot_id' => $chatbot->id,
+                'module_codes' => $moduleCodes->toArray()
+            ]);
+           }
 
-        $token = $chatbot->createToken($request->name)->plainTextToken;
+            $token = $chatbot->createToken($request->name)->plainTextToken;
 
-        return response()->json([
-            'chatbot_instance_id' => $chatbot->id,
-            'token' => $token,
-        ]);
+            return response()->json([
+                'chatbot_instance_id' => $chatbot->id,
+                'token' => $token,
+            ]);
     }
+
 
 
 }

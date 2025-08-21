@@ -58,9 +58,21 @@ class User extends Authenticatable implements FilamentUser
         return $this->is_admin === true;
     }
 // pivot table
-    public function modules()
+   /* public function modules()
     {
         return $this->belongsToMany(Module::class);
-    }
+    }*/
+     // FIXED: Updated pivot table relationship to use module_code
+     public function modules()
+     {
+         return $this->belongsToMany(
+             Module::class,           // Related model
+             'module_user',           // Pivot table name
+             'user_id',              // Foreign key on pivot table for current model
+             'module_code',          // Foreign key on pivot table for related model
+             'id',                   // Local key on current model
+             'code'                  // Local key on related model
+         );
+     }
 
 }

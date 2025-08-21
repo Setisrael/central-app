@@ -32,9 +32,6 @@ class SystemMetricController extends Controller
                // continue;
             }
 
-           /* $validated = $validator->validated();
-            $validated['user_id'] = $request->user()->id;*/
-
             $saved[] = SystemMetric::create($validator->validated());
         }
 

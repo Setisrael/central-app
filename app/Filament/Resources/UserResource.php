@@ -38,11 +38,6 @@ class UserResource extends Resource
                     ->email()
                     ->unique(ignoreRecord: true),
 
-                /*TextInput::make('password')
-                    ->password()
-                    ->required(fn ($livewire) => $livewire instanceof \Filament\Resources\Pages\CreateRecord)
-                    ->dehydrateStateUsing(fn ($state) => \Hash::make($state))
-                    ->label('Password'),*/
                 TextInput::make('password')
                     ->password()
                     ->label('Password')

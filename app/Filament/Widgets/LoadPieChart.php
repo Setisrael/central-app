@@ -1,7 +1,5 @@
 <?php
 
-// app/Filament/Widgets/LoadPieChart.php
-
 namespace App\Filament\Widgets;
 
 use App\Models\SystemMetric;
@@ -15,12 +13,6 @@ class LoadPieChart extends ChartWidget
 
     protected function getData(): array
     {
-       /* $from = now()->subDays(7);
-        $from = match (request('timeFilter')) {
-            '30days' => now()->subDays(30),
-            '90days' => now()->subDays(90),
-           // default => now()->subDays(7),
-        };*/
 
         $latestMetrics = SystemMetric::query()
             //->where('timestamp', '>=', $from)

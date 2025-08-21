@@ -29,26 +29,11 @@ class ChatbotInstance extends Model
         return $this->hasMany(SystemMetric::class);
     }
 
-
-   /* public function user()
-    {
-        return $this->belongsTo(User::class);
-    }*/
-// 'user_id', 'user_id' added below after pie chart wasn't showing
-   /* public function metricUsages()
-    {
-        return $this->hasMany(MetricUsage::class,'user_id', 'user_id');
-    }
-
-    public function systemMetrics()
-    {
-        return $this->hasMany(SystemMetric::class,'user_id', 'user_id');
-    }*/
-// pivotables
+    // UPDATED: Use module_code as the foreign key instead of module_id
     public function modules()
     {
-        return $this->belongsToMany(Module::class)
-                    ->withTimestamps();
+        return $this->belongsToMany(Module::class, 'chatbot_instance_module', 'chatbot_instance_id', 'module_code', 'id', 'code')
+            ->withTimestamps();
     }
  // to delete token upon chatbot delete
     protected static function booted()

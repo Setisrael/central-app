@@ -9,29 +9,7 @@ return new class extends Migration
     /**
      * Run the migrations.
      */
-   /* public function up(): void
-    {
-        Schema::create('metric_usages', function (Blueprint $table) {
-            $table->id();
-            $table->foreignId('chatbot_instance_id')->constrained('chatbot_instances')->onDelete('cascade');
 
-            $table->string('conversation_id')->nullable();
-            $table->string('embedding_id')->nullable();
-
-            $table->integer('prompt_tokens');
-            $table->integer('completion_tokens');
-            $table->float('temperature');
-            $table->string('model');
-            $table->integer('latency_ms');
-            $table->string('status')->default('ok');
-            $table->string('student_id_hash')->nullable();
-            $table->integer('duration_ms')->nullable();
-            $table->timestamp('timestamp');
-
-            $table->timestamps();
-        });
-
-    }*/
     public function up(): void
     {
         Schema::create('metric_usages', function (Blueprint $table) {
@@ -39,7 +17,12 @@ return new class extends Migration
 
             $table->foreignId('chatbot_instance_id')->constrained()->onDelete('cascade');
             $table->foreignId('agent_id')->nullable();
-            $table->foreignId('module_id')->nullable()->constrained()->nullOnDelete();
+           // $table->foreignId('module_id')->nullable()->constrained()->nullOnDelete();
+            // CORRECTED: Use unsignedBigInteger since we're referencing modules.code (not modules.id)
+            $table->unsignedBigInteger('module_code')->nullable();
+            // CORRECTED: Explicitly define the foreign key relationship
+            $table->foreign('module_code')->references('code')->on('modules')->nullOnDelete();
+
 
             $table->unsignedBigInteger('conversation_id');
             $table->unsignedBigInteger('message_id')->nullable();

@@ -14,10 +14,14 @@ return new class extends Migration
         Schema::create('chatbot_instance_module', function (Blueprint $table) {
             $table->id();
             $table->foreignId('chatbot_instance_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('module_id')->constrained()->cascadeOnDelete();
+            //$table->foreignId('module_code')->constrained()->cascadeOnDelete();
+            // CORRECTED: Use unsignedBigInteger and explicit foreign key
+            $table->unsignedBigInteger('module_code');
+            $table->foreign('module_code')->references('code')->on('modules')->cascadeOnDelete();
+
             $table->timestamps();
 
-            $table->unique(['chatbot_instance_id', 'module_id']); // Prevent duplicates
+            $table->unique(['chatbot_instance_id', 'module_code']); // Prevent duplicates
         });
 
     }

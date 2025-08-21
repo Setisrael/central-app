@@ -1,317 +1,5 @@
 <?php
 
-/*
-namespace App\Filament\Pages;
-
-use App\Models\MetricUsage;
-use App\Models\ChatbotInstance;
-use Filament\Pages\Page;
-
-class MetricsDashboard extends Page
-{
-    protected static string $view = 'filament.pages.metrics-dashboard';
-    protected static ?string $title = 'Dashboard';
-    protected static ?string $navigationIcon = 'heroicon-o-table-cells';
-    protected static ?int $navigationSort = 1;
-
-    protected function getViewData(): array
-    {
-        $tf = request('timeFilter', '7days');
-        $if = request('instanceFilter', 'all');
-
-        return [
-            'metrics' => $this->getFilteredMetrics($tf, $if),
-            'metricsForTable' => $this->getFilteredMetrics($tf),
-            'instances' => $this->getInstances(),
-            'timeFilter' => $tf,
-            'instanceFilter' => $if,
-        ];
-    }
-
-    protected function getFilteredMetrics(string $timeFilter, string $instanceFilter = 'all')
-    {
-        $query = MetricUsage::query()->with('chatbotInstance');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('chatbotInstance.modules.users', function ($q) {
-                $q->where('id', auth()->id());
-            });
-        }
-
-        $from = match ($timeFilter) {
-            '1day' => now()->subDay(),
-            '3days' => now()->subDays(3),
-            '5days' => now()->subDays(5),
-            '7days' => now()->subDays(7),
-            '30days' => now()->subDays(30),
-            '90days' => now()->subDays(90),
-            '6months' => now()->subMonths(6),
-            default => now()->subDays(7),
-        };
-
-        $query->where('timestamp', '>=', $from);
-
-        if (auth()->user()->is_admin && $instanceFilter !== 'all') {
-            $query->where('chatbot_instance_id', $instanceFilter);
-        }
-
-        return $query->get();
-    }
-
-
-    protected function getInstances()
-    {
-        $query = ChatbotInstance::query()->with('modules.users');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('modules.users', function ($q) {
-                $q->where('id', auth()->id());
-            });
-        }
-
-        return $query->get();
-    }
-
-    protected function getFilteredMetricsWithComparison(string $timeFilter, string $instanceFilter = 'all')
-    {
-        $query = MetricUsage::query()->with('chatbotInstance');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('chatbotInstance.modules.users', fn ($q) =>
-            $q->where('id', auth()->id()));
-        }
-
-        $now = now();
-        $from = match ($timeFilter) {
-            '1day' => $now->copy()->subDay(),
-            '3days' => $now->copy()->subDays(3),
-            '5days' => $now->copy()->subDays(5),
-            '7days' => $now->copy()->subDays(7),
-            '30days' => $now->copy()->subDays(30),
-            '90days' => $now->copy()->subDays(90),
-            '6months' => $now->copy()->subMonths(6),
-            default => $now->copy()->subDays(7),
-        };
-
-        $previousFrom = match ($timeFilter) {
-            '1day' => $from->copy()->subDay(),
-            '3days' => $from->copy()->subDays(3),
-            '5days' => $from->copy()->subDays(5),
-            '7days' => $from->copy()->subDays(7),
-            '30days' => $from->copy()->copy()->subDays(30),
-            '90days' => $from->copy()->subDays(90),
-            '6months' => $from->copy()->subMonths(6),
-            default => $from->copy()->subDays(7),
-        };
-
-        // current period
-        $current = (clone $query)
-            ->where('timestamp', '>=', $from)
-            ->when($instanceFilter !== 'all', fn ($q) =>
-            $q->where('chatbot_instance_id', $instanceFilter)
-            )
-            ->get();
-
-        // previous period
-        $previous = (clone $query)
-            ->whereBetween('timestamp', [$previousFrom, $from])
-            ->when($instanceFilter !== 'all', fn ($q) =>
-            $q->where('chatbot_instance_id', $instanceFilter)
-            )
-            ->get();
-
-        return [$current, $previous];
-    }
-
-}*/
-
-
-/*namespace App\Filament\Pages;
-
-use App\Models\MetricUsage;
-use App\Models\ChatbotInstance;
-use Filament\Pages\Page;
-use Illuminate\Support\Carbon;
-
-class MetricsDashboard extends Page
-{
-    protected static string $view = 'filament.pages.metrics-dashboard';
-    protected static ?string $title = 'Dashboard';
-    protected static ?string $navigationIcon = 'heroicon-o-table-cells';
-    protected static ?int $navigationSort = 1;
-
-    protected function getViewData(): array
-    {
-        $tf = request('timeFilter', '7days');
-        $if = request('instanceFilter', 'all');
-
-        // Fetch current and previous metrics with trends
-        [$currentMetrics, $previousMetrics, $trends] = $this->getFilteredMetricsWithComparison($tf, $if);
-
-        return [
-            'metrics' => $currentMetrics,
-            'metricsForTable' => $this->getFilteredMetrics($tf),
-            'previousMetrics' => $previousMetrics,
-            'trends' => $trends, // Pass trends to Blade
-            'instances' => $this->getInstances(),
-            'timeFilter' => $tf,
-            'instanceFilter' => $if,
-        ];
-    }
-
-    protected function getFilteredMetrics(string $timeFilter, string $instanceFilter = 'all')
-    {
-        $query = MetricUsage::query()->with('chatbotInstance');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('chatbotInstance.modules.users', function ($q) {
-                $q->where('users.id', auth()->id());
-            });
-        }
-
-        $from = match ($timeFilter) {
-            '1day' => now()->subDay(),
-            '3days' => now()->subDays(3),
-            '5days' => now()->subDays(5),
-            '7days' => now()->subDays(7),
-            '30days' => now()->subDays(30),
-            '90days' => now()->subDays(90),
-            '6months' => now()->subMonths(6),
-            default => now()->subDays(7),
-        };
-
-        $query->where('timestamp', '>=', $from);
-
-        if (auth()->user()->is_admin && $instanceFilter !== 'all') {
-            $query->where('chatbot_instance_id', $instanceFilter);
-        }
-
-        return $query->get();
-    }
-
-    protected function getInstances()
-    {
-        $query = ChatbotInstance::query()->with('modules.users');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('modules.users', function ($q) {
-                $q->where('users.id', auth()->id());
-            });
-        }
-
-        return $query->get();
-    }
-
-    protected function getFilteredMetricsWithComparison(string $timeFilter, string $instanceFilter = 'all')
-    {
-        $query = MetricUsage::query()->with('chatbotInstance');
-
-        if (!auth()->user()->is_admin) {
-            $query->whereHas('chatbotInstance.modules.users', function ($q) {
-                $q->where('users.id', auth()->id());
-            });
-        }
-
-        $now = now();
-        $from = match ($timeFilter) {
-            '1day' => $now->copy()->subDay(),
-            '3days' => $now->copy()->subDays(3),
-            '5days' => $now->copy()->subDays(5),
-            '7days' => $now->copy()->subDays(7),
-            '30days' => $now->copy()->subDays(30),
-            '90days' => $now->copy()->subDays(90),
-            '6months' => $now->copy()->subMonths(6),
-            default => $now->copy()->subDays(7),
-        };
-
-        $previousFrom = match ($timeFilter) {
-            '1day' => $from->copy()->subDay(),
-            '3days' => $from->copy()->subDays(3),
-            '5days' => $from->copy()->subDays(5),
-            '7days' => $from->copy()->subDays(7),
-            '30days' => $from->copy()->subDays(30),
-            '90days' => $from->copy()->subDays(90),
-            '6months' => $from->copy()->subMonths(6),
-            default => $from->copy()->subDays(7),
-        };
-
-        // Current period
-        $currentQuery = (clone $query)
-            ->where('timestamp', '>=', $from);
-
-        if (auth()->user()->is_admin && $instanceFilter !== 'all') {
-            $currentQuery->where('chatbot_instance_id', $instanceFilter);
-        }
-
-        $current = $currentQuery->get();
-
-        // Previous period
-        $previousQuery = (clone $query)
-            ->whereBetween('timestamp', [$previousFrom, $from]);
-
-        if (auth()->user()->is_admin && $instanceFilter !== 'all') {
-            $previousQuery->where('chatbot_instance_id', $instanceFilter);
-        }
-
-        $previous = $previousQuery->get();
-
-        // Calculate trends per instance
-        $trends = [];
-        $currentGrouped = $current->groupBy('chatbot_instance_id');
-        $previousGrouped = $previous->groupBy('chatbot_instance_id');
-
-        foreach ($currentGrouped as $instanceId => $group) {
-            $totalRequests = $group->count();
-            $previousCount = $previousGrouped->get($instanceId)?->count() ?? 0;
-
-            $trend = match (true) {
-                $previousCount === 0 && $totalRequests > 0 => 'up',
-                $previousCount === 0 && $totalRequests === 0 => 'flat',
-                $totalRequests === 0 && $previousCount > 0 => 'down',
-                $totalRequests > $previousCount => 'up',
-                $totalRequests < $previousCount => 'down',
-                default => 'flat'
-            };
-
-            $percentageChange = $previousCount > 0
-                ? (($totalRequests - $previousCount) / $previousCount * 100)
-                : ($totalRequests > 0 ? 100 : 0);
-
-            $trends[$instanceId] = [
-                'trend' => $trend,
-                'percentage_change' => number_format($percentageChange, 1),
-                'total_requests' => $totalRequests,
-                'previous_count' => $previousCount,
-            ];
-        }
-
-        // Include instances with data only in previous period
-        foreach ($previousGrouped as $instanceId => $group) {
-            if (!isset($trends[$instanceId])) {
-                $totalRequests = 0;
-                $previousCount = $group->count();
-
-                $trend = match (true) {
-                    $totalRequests === 0 && $previousCount > 0 => 'down',
-                    default => 'flat'
-                };
-
-                $percentageChange = $previousCount > 0 ? -100 : 0;
-
-                $trends[$instanceId] = [
-                    'trend' => $trend,
-                    'percentage_change' => number_format($percentageChange, 1),
-                    'total_requests' => $totalRequests,
-                    'previous_count' => $previousCount,
-                ];
-            }
-        }
-
-        return [$current, $previous, $trends];
-    }
-}*/
-
-
 namespace App\Filament\Pages;
 
 use App\Models\MetricUsage;
@@ -340,7 +28,7 @@ class MetricsDashboard extends Page
             'metricsForTable' => $this->getFilteredMetrics($timeFilter, $moduleFilter),
             'previousMetrics' => $previousMetrics,
             'trends' => $trends,
-            'modules' => $this->getModules(),
+            'modules' => $this->getModules(), // FIXED: Now uses the same logic as UserActivity
             'timeFilter' => $timeFilter,
             'moduleFilter' => $moduleFilter,
         ];
@@ -350,16 +38,16 @@ class MetricsDashboard extends Page
     {
         $query = MetricUsage::query()->with('chatbotInstance');
 
-        // Apply user role restrictions
+        // Apply user role restrictions using module_code
         if (!auth()->user()->is_admin) {
-            // Get user's module IDs from the module_user pivot table
-            $userModuleIds = \DB::table('module_user')
+            // Get user's module codes from the module_user pivot table
+            $userModuleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($userModuleIds)) {
-                $query->whereIn('module_id', $userModuleIds);
+            if (!empty($userModuleCodes)) {
+                $query->whereIn('module_code', $userModuleCodes);
             } else {
                 // If user has no modules, return empty result
                 $query->whereRaw('1 = 0');
@@ -380,30 +68,31 @@ class MetricsDashboard extends Page
 
         $query->where('timestamp', '>=', $from);
 
-        // Apply module filter
+        // Apply module filter using module_code
         if ($moduleFilter !== 'all') {
-            $query->where('module_id', $moduleFilter);
+            $query->where('module_code', $moduleFilter);
         }
 
         return $query->get();
     }
 
+    // FIXED: Added the same getModules() method as UserActivity page
     protected function getModules()
     {
         if (auth()->user()->is_admin) {
-            // Admin sees all modules
-            $modules = Module::orderBy('name')->pluck('name', 'id')->toArray();
+            // Admin sees all modules, use code as key
+            $modules = Module::orderBy('name')->pluck('name', 'code')->toArray();
         } else {
             // Non-admin sees only their assigned modules
-            $moduleIds = \DB::table('module_user')
+            $moduleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($moduleIds)) {
-                $modules = Module::whereIn('id', $moduleIds)
+            if (!empty($moduleCodes)) {
+                $modules = Module::whereIn('code', $moduleCodes)
                     ->orderBy('name')
-                    ->pluck('name', 'id')
+                    ->pluck('name', 'code')
                     ->toArray();
             } else {
                 $modules = [];
@@ -417,16 +106,16 @@ class MetricsDashboard extends Page
     {
         $query = MetricUsage::query()->with('chatbotInstance');
 
-        // Apply user role restrictions
+        // Apply user role restrictions using module_code
         if (!auth()->user()->is_admin) {
-            // Get user's module IDs from the module_user pivot table
-            $userModuleIds = \DB::table('module_user')
+            // Get user's module codes from the module_user pivot table
+            $userModuleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($userModuleIds)) {
-                $query->whereIn('module_id', $userModuleIds);
+            if (!empty($userModuleCodes)) {
+                $query->whereIn('module_code', $userModuleCodes);
             } else {
                 // If user has no modules, return empty result
                 $query->whereRaw('1 = 0');
@@ -459,25 +148,25 @@ class MetricsDashboard extends Page
         // Current period
         $currentQuery = (clone $query)->where('timestamp', '>=', $from);
         if ($moduleFilter !== 'all') {
-            $currentQuery->where('module_id', $moduleFilter);
+            $currentQuery->where('module_code', $moduleFilter);
         }
         $current = $currentQuery->get();
 
         // Previous period
         $previousQuery = (clone $query)->whereBetween('timestamp', [$previousFrom, $from]);
         if ($moduleFilter !== 'all') {
-            $previousQuery->where('module_id', $moduleFilter);
+            $previousQuery->where('module_code', $moduleFilter);
         }
         $previous = $previousQuery->get();
 
-        // Calculate trends per instance (but filtered by modules)
+        // Calculate trends per module using module_code
         $trends = [];
-        $currentGrouped = $current->groupBy('module_id');
-        $previousGrouped = $previous->groupBy('module_id');
+        $currentGrouped = $current->groupBy('module_code');
+        $previousGrouped = $previous->groupBy('module_code');
 
-        foreach ($currentGrouped as $moduleId=> $group) {
+        foreach ($currentGrouped as $moduleCode => $group) {
             $totalRequests = $group->count();
-            $previousCount = $previousGrouped->get($moduleId)?->count() ?? 0;
+            $previousCount = $previousGrouped->get($moduleCode)?->count() ?? 0;
 
             $trend = match (true) {
                 $previousCount === 0 && $totalRequests > 0 => 'up',
@@ -492,7 +181,7 @@ class MetricsDashboard extends Page
                 ? (($totalRequests - $previousCount) / $previousCount * 100)
                 : ($totalRequests > 0 ? 100 : 0);
 
-            $trends[$moduleId] = [
+            $trends[$moduleCode] = [
                 'trend' => $trend,
                 'percentage_change' => number_format($percentageChange, 1),
                 'total_requests' => $totalRequests,
@@ -500,9 +189,9 @@ class MetricsDashboard extends Page
             ];
         }
 
-        // Include instances with data only in previous period
-        foreach ($previousGrouped as $moduleId => $group) {
-            if (!isset($trends[$moduleId])) {
+        // Include modules with data only in previous period
+        foreach ($previousGrouped as $moduleCode => $group) {
+            if (!isset($trends[$moduleCode])) {
                 $totalRequests = 0;
                 $previousCount = $group->count();
 
@@ -513,7 +202,7 @@ class MetricsDashboard extends Page
 
                 $percentageChange = $previousCount > 0 ? -100 : 0;
 
-                $trends[$moduleId] = [
+                $trends[$moduleCode] = [
                     'trend' => $trend,
                     'percentage_change' => number_format($percentageChange, 1),
                     'total_requests' => $totalRequests,
@@ -525,5 +214,3 @@ class MetricsDashboard extends Page
         return [$current, $previous, $trends];
     }
 }
-
-

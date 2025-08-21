@@ -11,14 +11,29 @@ class Module extends Model
 
     protected $fillable = ['name', 'code'];
 
-    public function chatbotInstance()
+    // FIXED: Updated pivot table relationship to use module_code
+    public function chatbotInstances()
     {
-        return $this->belongsToMany(ChatbotInstance::class)
-                    ->withTimestamps();
+        return $this->belongsToMany(
+            ChatbotInstance::class,     // Related model
+            'chatbot_instance_module',  // Pivot table name
+            'module_code',             // Foreign key on pivot table for current model
+            'chatbot_instance_id',     // Foreign key on pivot table for related model
+            'code',                    // Local key on current model
+            'id'                       // Local key on related model
+        )->withTimestamps();
     }
 
+    // FIXED: Updated pivot table relationship to use module_code
     public function users()
     {
-        return $this->belongsToMany(User::class);
+        return $this->belongsToMany(
+            User::class,        // Related model
+            'module_user',      // Pivot table name
+            'module_code',      // Foreign key on pivot table for current model
+            'user_id',          // Foreign key on pivot table for related model
+            'code',             // Local key on current model
+            'id'                // Local key on related model
+        );
     }
 }

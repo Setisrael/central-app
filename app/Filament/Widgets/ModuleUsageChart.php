@@ -37,30 +37,30 @@ class ModuleUsageChart extends ChartWidget
             default => now()->subDays(90),
         };
 
-        // Start with base query joining with modules table
+        // Start with base query joining with modules table using module_code
         $query = MetricUsage::query()
-            ->join('modules', 'metric_usages.module_id', '=', 'modules.id')
+            ->join('modules', 'metric_usages.module_code', '=', 'modules.code')
             ->where('metric_usages.timestamp', '>=', $from);
 
-        // Apply user role restrictions
+        // Apply user role restrictions using module_code
         if (!auth()->user()->is_admin) {
-            // Get user's module IDs from the module_user pivot table
-            $userModuleIds = \DB::table('module_user')
+            // Get user's module codes from the module_user pivot table
+            $userModuleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
-                ->pluck('module_id')
+                ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($userModuleIds)) {
-                $query->whereIn('metric_usages.module_id', $userModuleIds);
+            if (!empty($userModuleCodes)) {
+                $query->whereIn('metric_usages.module_code', $userModuleCodes);
             } else {
                 // If user has no modules, return empty result
                 $query->whereRaw('1 = 0');
             }
         }
 
-        // Apply module filter - if specific module selected, only show that one
+        // Apply module filter using module_code
         if ($this->moduleFilter !== 'all') {
-            $query->where('metric_usages.module_id', $this->moduleFilter);
+            $query->where('metric_usages.module_code', $this->moduleFilter);
         }
 
         Log::debug('ModuleUsageChart query', [
@@ -72,7 +72,7 @@ class ModuleUsageChart extends ChartWidget
 
         // Get module usage counts
         $raw = $query->selectRaw('modules.name as module_name, COUNT(*) as count')
-            ->groupBy('modules.id', 'modules.name')
+            ->groupBy('modules.code', 'modules.name')
             ->orderByDesc('count')
             ->get();
 
@@ -149,7 +149,7 @@ class ModuleUsageChart extends ChartWidget
     {
         $moduleName = 'All Modules';
         if ($this->moduleFilter !== 'all') {
-            $module = Module::find($this->moduleFilter);
+            $module = Module::where('code', $this->moduleFilter)->first();
             $moduleName = $module ? $module->name : 'Unknown Module';
         }
 

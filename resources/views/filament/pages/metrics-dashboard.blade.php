@@ -14,8 +14,8 @@
 
         <select name="moduleFilter" class="border p-2 rounded"
                 onchange="location.href='?moduleFilter='+this.value+'&timeFilter={{ request('timeFilter', '7days') }}'">
-            @foreach ($modules as $id => $name)
-                <option value="{{ $id }}" @selected(request('moduleFilter', 'all') == $id)>
+            @foreach ($modules as $code => $name)
+                <option value="{{ $code }}" @selected(request('moduleFilter', 'all') == $code)>
                     {{ $name }}
                 </option>
             @endforeach
@@ -26,7 +26,7 @@
     @php
         $totalRequests = $metrics->count();
         $totalTokens = $metrics->sum('prompt_tokens') + $metrics->sum('completion_tokens');
-        $avgDuration = $metrics->avg('duration_ms') / 1000;
+        $avgLatency = $metrics->avg('latency_ms') / 1000;
     @endphp
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mt-4">
         <x-filament::card>
@@ -41,21 +41,21 @@
 
         <x-filament::card>
             <div class="text-gray-600">Avg. Response Time</div>
-            <div class="text-2xl font-bold">{{ number_format($avgDuration, 2) }}s</div>
+            <div class="text-2xl font-bold">{{ number_format($avgLatency, 2) }}s</div>
         </x-filament::card>
     </div>
 
     {{-- Charts --}}
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mt-4">
+    <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mt-4">
+        <div class="mt-6">
+            @livewire(\App\Filament\Widgets\AnswerQualityOverview::class, ['timeFilter' => $timeFilter, 'moduleFilter' => $moduleFilter], key('quality-'.$timeFilter.'-'.$moduleFilter))
+        </div>
         <div class="overflow-x-auto">
             @livewire(\App\Filament\Widgets\RequestChart::class)
         </div>
-        <div>
-            @livewire(\App\Filament\Widgets\LoadPieChart::class)
-        </div>
     </div>
 
-    {{-- Metrics per Instance Table --}}
+    {{-- Metrics per Module Table --}}
     <x-filament::card class="mt-6">
         <h3 class="text-lg font-bold mb-2">Metrics per Module</h3>
         <table class="w-full text-sm text-left">
@@ -64,19 +64,20 @@
                 <th class="p-2">Module</th>
                 <th class="p-2">Requests</th>
                 <th class="p-2">Tokens</th>
-                <th class="p-2">Response Time</th>
+                <th class="p-2">Avg Response Time</th>
                 <th class="p-2">Trend</th>
             </tr>
             </thead>
             <tbody>
-            @foreach ($metricsForTable->groupBy('module_id') as $moduleId => $group)
+            @foreach ($metricsForTable->groupBy('module_code') as $moduleCode => $group)
                 @php
-                    //$module = $group->first()->chatbotInstance ?? null;
-                    $module = \App\Models\Module::find($moduleId);
+                    // FIXED: Use module_code instead of module_id
+                    $module = \App\Models\Module::where('code', $moduleCode)->first();
                     $totalRequests = $group->count();
                     $totalTokens = $group->sum('prompt_tokens') + $group->sum('completion_tokens');
-                    $avgDuration = $group->avg('duration_ms') / 1000;
-                    $trendData = $trends[$moduleId] ?? [
+                    $avgLatency = $group->avg('latency_ms') / 1000;
+                    // FIXED: Use module_code for trends lookup
+                    $trendData = $trends[$moduleCode] ?? [
                         'trend' => 'flat',
                         'percentage_change' => '0',
                         'total_requests' => $totalRequests,
@@ -84,10 +85,10 @@
                     ];
                 @endphp
                 <tr>
-                    <td class="p-2">{{ $module?->name ?? 'Unknown (ID: ' . $moduleId . ')' }}</td>
+                    <td class="p-2">{{ $module?->name ?? 'Unknown (Code: ' . $moduleCode . ')' }}</td>
                     <td class="p-2">{{ $totalRequests }}</td>
                     <td class="p-2">{{ number_format($totalTokens / 1000, 2) }}K</td>
-                    <td class="p-2">{{ number_format($avgDuration, 2) }}s</td>
+                    <td class="p-2">{{ number_format($avgLatency, 2) }}s</td>
                     <td class="p-2">
                         @if ($trendData['trend'] === 'up')
                             <x-heroicon-o-arrow-trending-up class="w-5 h-5 text-green-500 inline" />

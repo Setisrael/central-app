@@ -14,10 +14,14 @@ return new class extends Migration
         Schema::create('module_user', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('module_id')->constrained()->cascadeOnDelete();
+            //$table->foreignId('module_code')->constrained()->cascadeOnDelete();
+            // CORRECTED: Use unsignedBigInteger and explicit foreign key
+            $table->unsignedBigInteger('module_code');
+            $table->foreign('module_code')->references('code')->on('modules')->cascadeOnDelete();
+
             $table->timestamps();
 
-            $table->unique(['user_id', 'module_id']);
+            $table->unique(['user_id', 'module_code']);
         });
 
     }

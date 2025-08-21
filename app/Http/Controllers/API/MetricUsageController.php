@@ -24,53 +24,23 @@ class MetricUsageController extends Controller
             $chatbot = ChatbotInstance::find($data[0]['chatbot_instance_id']);
 
             if ($chatbot) {
-                $moduleIds = collect($request->modules)->map(function ($module) {
-                    return Module::firstOrCreate(
+                $moduleCodes = collect($request->modules)->map(function ($module) {
+                    // Create or update the module
+                    Module::firstOrCreate(
                         ['code' => $module['ref_id']],
                         ['name' => $module['name']]
-                    )->id;
+                    );
+
+                    // Return the code for syncing
+                    return $module['ref_id'];
                 });
 
-                $chatbot->modules()->syncWithoutDetaching($moduleIds);
+                Log::info('Modules synced for chatbot', [
+                    'chatbot_id' => $chatbot->id,
+                    'module_codes' => $moduleCodes->toArray()
+                ]);
             }
         }// ends here
-
-
-        /*foreach ($data as $metric) {
-            $validator = validator($metric, [
-                'chatbot_instance_id' => 'required|integer|exists:chatbot_instances,id',
-                'agent_id' => 'nullable|integer',
-                'module_id' => 'nullable|integer|exists:modules,id',
-                'conversation_id' => 'required|string',
-                'message_id' => 'nullable|integer',
-                'embedding_id' => 'nullable|string',
-                'document_id' => 'nullable|integer',
-                'student_id_hash' => 'required|string',
-                'prompt_tokens' => 'required|integer',
-                'completion_tokens' => 'required|integer',
-                'temperature' => 'nullable|numeric',
-                'model' => 'required|string',
-                'latency_ms' => 'nullable|integer',
-                'duration_ms' => 'nullable|integer',
-                'status' => 'required|string|in:ok,error,timeout,empty',
-                'answer_type' => 'required|string|in:embedding,llm,both,none',
-                'helpful' => 'nullable|boolean',
-                'source' => 'nullable|string',
-                'chatbot_version' => 'nullable|string',
-                'timestamp' => 'required|date',
-            ]);
-
-            if ($validator->fails()) {
-                Log::warning('Validation failed for metric', $validator->errors()->toArray());
-                return response()->json([
-                    'error' => $validator->errors(),], 422);
-               // continue;
-            }
-           // $validated = $validator->validated();
-            //$validated['user_id'] = $request->user()->id;
-
-            $saved[] = MetricUsage::create($validator->validated());
-        }*/
         foreach ($data as $entry) {
             $lookup = $entry['lookup'] ?? null;
             $payload = $entry['data'] ?? null;
@@ -84,9 +54,9 @@ class MetricUsageController extends Controller
                 'chatbot_instance_id' => 'required|integer|exists:chatbot_instances,id',
                 'conversation_id'     => 'required|string',
                 'message_id'          => 'required|integer',
-
                 'agent_id'            => 'nullable|integer',
-                'module_id'           => 'nullable|integer|exists:modules,id',
+                //'module_id'           => 'nullable|integer|exists:modules,code',
+                'module_code'         => 'nullable|integer|exists:modules,code',
                 'embedding_id'        => 'nullable|string',
                 'document_id'         => 'nullable|integer',
                 'student_id_hash'     => 'required|string',
@@ -105,8 +75,11 @@ class MetricUsageController extends Controller
             ]);
 
             if ($validator->fails()) {
-                Log::warning('Validation failed for metric', $validator->errors()->toArray());
-                return response()->json(['error' => $validator->errors()], 422);
+                Log::warning('Validation failed for metric', [
+                    'errors' => $validator->errors()->toArray(),
+                    'data' => array_merge($lookup, $payload)
+                ]);
+                continue; // Continue processing other entries instead of returning error
             }
 
             $validated = $validator->validated();
