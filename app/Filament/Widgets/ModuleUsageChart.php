@@ -135,13 +135,8 @@ class ModuleUsageChart extends ChartWidget
                         'usePointStyle' => true,
                     ]
                 ],
-                'tooltip' => [
-                    'callbacks' => [
-                        'label' => null // Use default label formatting
-                    ]
-                ]
             ],
-            'cutout' => '50%', // Makes it a doughnut instead of pie
+            'cutout' => '50%',
         ];
     }
 

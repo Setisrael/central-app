@@ -20,6 +20,7 @@
             @endforeach
         </select>
     </div>
+
     {{-- Summary Statistics --}}
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-6">
         <x-filament::card>
@@ -49,12 +50,10 @@
 
     {{-- Charts Section --}}
     <div class="flex flex-col lg:flex-row gap-6 mb-8">
-        {{-- Feedback Chart --}}
         <div class="flex-1 w-full lg:w-1/2">
             @livewire(\App\Filament\Widgets\SystemPerformanceChart::class)
         </div>
 
-        {{-- Module Usage Chart --}}
         <div class="flex-1 w-full lg:w-1/2">
             @livewire(\App\Filament\Widgets\LoadPieChart::class)
         </div>
@@ -80,6 +79,15 @@
                 </thead>
                 <tbody>
                 @foreach ($recentMetrics as $metric)
+                    @php
+                        $lastPush = \Carbon\Carbon::parse($metric->timestamp ?? $metric->created_at);
+                        $isStale  = $lastPush->lt(now()->subDay()); // older than 24h
+                        $isResourceHealthy = $metric->cpu_usage < 80
+                            && $metric->ram_usage < 1000
+                            && $metric->disk_usage < 90
+                            && $metric->queue_size < 10;
+                        $isHealthy = $isResourceHealthy && ! $isStale;
+                    @endphp
                     <tr class="border-b hover:bg-gray-50">
                         <td class="p-3 font-medium">{{ $metric->chatbotInstance->name ?? 'Unknown' }}</td>
                         <td class="p-3">{{ \Carbon\Carbon::parse($metric->timestamp)->format('M j, H:i:s') }}</td>
@@ -104,13 +112,15 @@
                                 {{ $metric->queue_size }}
                             </span>
                         </td>
-                        <td class="p-3 text-xs text-gray-600">
-                            {{ \Carbon\Carbon::parse($metric->created_at)->format('M j, H:i:s') }}
+                        <td class="p-3 text-xs">
+                            <span class="{{ $isStale ? 'text-red-600 font-medium' : 'text-gray-600' }}">
+                                {{ $lastPush->format('M j, H:i:s') }}
+                                <span class="ml-1 text-[11px] {{ $isStale ? 'text-red-500' : 'text-gray-500' }}">
+                                    ({{ $lastPush->diffForHumans() }})
+                                </span>
+                            </span>
                         </td>
                         <td class="p-3">
-                            @php
-                                $isHealthy = $metric->cpu_usage < 80 && $metric->ram_usage < 1000 && $metric->disk_usage < 90 && $metric->queue_size < 10;
-                            @endphp
                             <span class="px-2 py-1 rounded text-xs {{ $isHealthy ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800' }}">
                                 {{ $isHealthy ? 'Healthy' : 'Warning' }}
                             </span>

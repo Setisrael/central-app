@@ -138,7 +138,7 @@ class UserActivity extends Page implements HasTable
                     ->formatStateUsing(fn ($state) => number_format($state, 1) . '%'),
             ])
             ->filters([
-                SelectFilter::make('timeFilter')
+                Tables\Filters\SelectFilter::make('timeFilter')
                     ->label('Time Range')
                     ->options([
                         '1day' => 'Last 1 Day',
@@ -149,49 +149,36 @@ class UserActivity extends Page implements HasTable
                         '90days' => 'Last 90 Days',
                         '6months' => 'Last 6 Months',
                     ])
-                    ->query(fn (Builder $query, array $data) => $data['value']
-                        ? $query->where('timestamp', '>=', match ($data['value']) {
-                            '1day' => now()->subDay(),
-                            '3days' => now()->subDays(3),
-                            '5days' => now()->subDays(5),
-                            '7days' => now()->subDays(7),
-                            '30days' => now()->subDays(30),
-                            '90days' => now()->subDays(90),
-                            '6months' => now()->subMonths(6),
-                            default => now()->subDays(7),
-                        })
-                        : $query
-                    ),
-                SelectFilter::make('moduleFilter')
+                    ->default('7days') // default time filter
+                    ->query(fn (Builder $query, array $data) => $query->where('timestamp', '>=', match ($data['value']) {
+                        '1day' => now()->subDay(),
+                        '3days' => now()->subDays(3),
+                        '5days' => now()->subDays(5),
+                        '7days' => now()->subDays(7),
+                        '30days' => now()->subDays(30),
+                        '90days' => now()->subDays(90),
+                        '6months' => now()->subMonths(6),
+                        default => now()->subDays(7),
+                    })),
+
+                Tables\Filters\SelectFilter::make('moduleFilter')
                     ->label('Module')
                     ->options(function () {
-                        // Get modules based on user role using module_code
                         if (auth()->user()->is_admin) {
-                            // Admin sees all modules
-                            $modules = Module::orderBy('name')->pluck('name', 'code')->toArray();
+                            return Module::orderBy('name')->pluck('name', 'code')->toArray();
                         } else {
-                            // Non-admin sees only their assigned modules
                             $moduleCodes = \DB::table('module_user')
                                 ->where('user_id', auth()->id())
                                 ->pluck('module_code')
                                 ->toArray();
 
-                            if (!empty($moduleCodes)) {
-                                $modules = Module::whereIn('code', $moduleCodes)
-                                    ->orderBy('name')
-                                    ->pluck('name', 'code')
-                                    ->toArray();
-                            } else {
-                                $modules = [];
-                            }
+                            return !empty($moduleCodes)
+                                ? Module::whereIn('code', $moduleCodes)->orderBy('name')->pluck('name', 'code')->toArray()
+                                : [];
                         }
-
-                        return ['all' => 'All Modules'] + $modules;
                     })
                     ->query(fn (Builder $query, array $data) =>
-                    $data['value'] !== 'all'
-                        ? $query->where('module_code', $data['value'])
-                        : $query
+                    !empty($data['value']) ? $query->where('module_code', $data['value']) : $query
                     ),
             ])
             ->defaultSort('total_requests', 'desc')

@@ -3,17 +3,14 @@
 namespace App\Filament\Widgets;
 
 use App\Models\MetricUsage;
-use App\Models\Module;
 use Filament\Widgets\StatsOverviewWidget as BaseWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Log;
 
 class AnswerQualityOverview extends BaseWidget
 {
     protected static bool $isLazy = false;
     protected int|string|array $columnSpan = 'full';
-
 
     public string $timeFilter = '90days';
     public string $moduleFilter = 'all';
@@ -37,10 +34,10 @@ class AnswerQualityOverview extends BaseWidget
             default => now()->subDays(90),
         };
 
-        // Build base query
+        // Base query (time window)
         $query = MetricUsage::query()->where('timestamp', '>=', $from);
 
-        // Apply user role restrictions using module_code
+        // Restrict by role (modules a prof can see) via module_code
         if (!auth()->user()->is_admin) {
             $userModuleCodes = DB::table('module_user')
                 ->where('user_id', auth()->id())
@@ -50,16 +47,16 @@ class AnswerQualityOverview extends BaseWidget
             if (!empty($userModuleCodes)) {
                 $query->whereIn('module_code', $userModuleCodes);
             } else {
+                // User has no module access -> show no data
                 $query->whereRaw('1 = 0');
             }
         }
 
-        // Apply module filter
+        // Apply explicit module filter
         if ($this->moduleFilter !== 'all') {
             $query->where('module_code', $this->moduleFilter);
         }
 
-        // Calculate simple metrics
         $totalQueries = $query->count();
 
         if ($totalQueries === 0) {
@@ -68,46 +65,62 @@ class AnswerQualityOverview extends BaseWidget
                     ->description('No data available')
                     ->descriptionIcon('heroicon-m-information-circle')
                     ->color('gray'),
-
-               /* Stat::make('Avg Response Speed', '0s')
-                    ->description('No data available')
-                    ->descriptionIcon('heroicon-m-information-circle')
-                    ->color('gray'),*/
-
-                Stat::make('Primary Answer Source', 'N/A')
+                Stat::make('Primary Model', 'N/A')
                     ->description('No data available')
                     ->descriptionIcon('heroicon-m-information-circle')
                     ->color('gray'),
             ];
         }
 
-        // 1. Success Rate (status = 'ok')
+        // 1) Success Rate
         $successfulQueries = $query->clone()->where('status', 'ok')->count();
         $successRate = round(($successfulQueries / $totalQueries) * 100, 1);
 
-        // 2. Average Response Speed
-        $avgLatency = $query->clone()->avg('latency_ms') ?? 0;
-        $avgSpeed = round($avgLatency / 1000, 2); // Convert to seconds
-
-        // 3. Answer Source Distribution
+        // 2) Primary Answer Source (kept for charts; not displayed as a Stat label anymore)
         $embeddingCount = $query->clone()->where('answer_type', 'embedding')->count();
-        $llmCount = $query->clone()->where('answer_type', 'llm')->count();
-        $bothCount = $query->clone()->where('answer_type', 'both')->count();
+        $llmCount       = $query->clone()->where('answer_type', 'llm')->count();
+        $bothCount      = $query->clone()->where('answer_type', 'both')->count();
 
-        // Find the primary source
         $sources = [
             'embedding' => $embeddingCount,
-            'llm' => $llmCount,
-            'both' => $bothCount,
+            'llm'       => $llmCount,
+            'both'      => $bothCount,
         ];
+        $primarySource   = array_search(max($sources), $sources);
+        $primaryPercent  = round((max($sources) / $totalQueries) * 100, 1);
 
-        $primarySource = array_search(max($sources), $sources);
-        $primaryPercent = round((max($sources) / $totalQueries) * 100, 1);
+        // 3) Primary Model (among llm/both)
+        $llmQuery = $query->clone()
+            ->whereIn('answer_type', ['llm', 'both'])
+            ->whereNotNull('model')
+            ->where('model', '!=', '');
 
+        $llmTotal = $llmQuery->count();
+
+        $topModelRow = $llmQuery
+            ->select('model', DB::raw('COUNT(*) as cnt'))
+            ->groupBy('model')
+            ->orderByDesc('cnt')
+            ->first();
+
+        $primaryModel = $topModelRow->model ?? 'N/A';
+
+        // Show percentage out of ALL queries (consistent with previous card wording)
+        $primaryModelPercent = $topModelRow
+            ? round(($topModelRow->cnt / $totalQueries) * 100, 1)
+            : 0.0;
+
+        // If there are zero LLM answers, fall back gracefully
+        if ($llmTotal === 0) {
+            $primaryModel = 'N/A';
+            $primaryModelPercent = 0.0;
+        }
+
+        // Labels for the (hidden) source chart still useful for the sparkline
         $sourceLabels = [
             'embedding' => 'Knowledge Base',
-            'llm' => 'AI Model',
-            'both' => 'Hybrid',
+            'llm'       => 'AI Model',
+            'both'      => 'Hybrid',
         ];
 
         return [
@@ -117,29 +130,27 @@ class AnswerQualityOverview extends BaseWidget
                 ->color($successRate >= 80 ? 'success' : ($successRate >= 60 ? 'warning' : 'danger'))
                 ->chart($this->getSuccessRateChart($query)),
 
-
-            Stat::make('Primary Answer Source', $sourceLabels[$primarySource])
-                ->description($primaryPercent . '% from ' . $sourceLabels[$primarySource])
-                ->descriptionIcon('heroicon-m-document-text')
+            // Replaced "Primary Answer Source" with "Primary Model"
+            Stat::make('Primary Model', $primaryModel)
+               // ->description($primaryModelPercent . '% of answers used ' . $primaryModel)
+                ->descriptionIcon('heroicon-m-cpu-chip')
                 ->color('info')
-                ->chart($this->getSourceChart($query)),
+                ->chart($this->getSourceChart($query)), // keep the small sparkline for continuity
         ];
     }
 
     private function getSuccessRateChart($query)
     {
-        // Ensure query respects current filters
         $chartQuery = $query->clone();
 
-        // Chart period based on time filter
         $days = match ($this->timeFilter) {
             '1day' => 1,
             '3days' => 3,
             '5days' => 5,
             '7days' => 7,
-            '30days' => 7, // Show 7 points for 30 days (every ~4 days)
-            '90days' => 7, // Show 7 points for 90 days (every ~13 days)
-            '6months' => 7, // Show 7 points for 6 months (every ~26 days)
+            '30days' => 7,
+            '90days' => 7,
+            '6months' => 7,
             default => 7,
         };
 
@@ -162,10 +173,9 @@ class AnswerQualityOverview extends BaseWidget
 
     private function getSourceChart($query)
     {
-        // Ensure query respects current filters
+        // Keep a compact sparkline showing share of KB vs LLM across time.
         $chartQuery = $query->clone();
 
-        // Chart period based on time filter
         $days = match ($this->timeFilter) {
             '1day' => 1,
             '3days' => 3,
@@ -190,7 +200,7 @@ class AnswerQualityOverview extends BaseWidget
             $embedding = $chartQuery->clone()->whereDate('timestamp', $date)->where('answer_type', 'embedding')->count();
             $llm = $chartQuery->clone()->whereDate('timestamp', $date)->where('answer_type', 'llm')->count();
             $total = $embedding + $llm;
-            $sourceData[] = $total > 0 ? round(($embedding / $total) * 100) : 0;
+            $sourceData[] = $total > 0 ? round(($llm / $total) * 100) : 0; // % that used LLM that day
         }
         return $sourceData;
     }

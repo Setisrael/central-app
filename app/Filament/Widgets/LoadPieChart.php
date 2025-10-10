@@ -13,9 +13,7 @@ class LoadPieChart extends ChartWidget
 
     protected function getData(): array
     {
-
         $latestMetrics = SystemMetric::query()
-            //->where('timestamp', '>=', $from)
             ->latest('timestamp')
             ->get()
             ->groupBy('chatbot_instance_id')
@@ -27,11 +25,23 @@ class LoadPieChart extends ChartWidget
 
         $data = $latestMetrics->pluck('cpu_usage');
 
+        // Generate distinct colors for each instance
+        $colors = [];
+        $borderColors = [];
+        foreach ($latestMetrics as $index => $metric) {
+            $hue = ($index * 137) % 360; // Golden angle for distinct colors
+            $colors[] = "hsla({$hue}, 70%, 60%, 0.8)";
+            $borderColors[] = "hsla({$hue}, 70%, 50%, 1)";
+        }
+
         return [
             'datasets' => [
                 [
                     'label' => 'CPU Load',
                     'data' => $data->values()->toArray(),
+                    'backgroundColor' => $colors,
+                    'borderColor' => $borderColors,
+                    'borderWidth' => 1,
                 ],
             ],
             'labels' => $labels->values()->toArray(),
@@ -43,4 +53,3 @@ class LoadPieChart extends ChartWidget
         return 'pie';
     }
 }
-

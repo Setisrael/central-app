@@ -14,6 +14,8 @@ class MetricUsage extends Model
         'chatbot_instance_id',
         'agent_id',
         'module_code',
+        'user_message',
+        'agent_message',
         'conversation_id',
         'message_id',
         'embedding_id',

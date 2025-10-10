@@ -9,6 +9,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Columns\TextColumn;
 use Illuminate\Database\Eloquent\Builder;
+use App\Models\Module;
 
 class UserActivityDetails extends Page implements HasTable
 {
@@ -31,7 +32,7 @@ class UserActivityDetails extends Page implements HasTable
             ->query(MetricUsage::query()
                 ->where('student_id_hash', $this->student_id_hash)
                 ->when(!auth()->user()->is_admin, function ($query) {
-                    // Apply user role restrictions using module_code
+                    // Restrict by modules for non-admin
                     $userModuleCodes = \DB::table('module_user')
                         ->where('user_id', auth()->id())
                         ->pluck('module_code')
@@ -40,32 +41,23 @@ class UserActivityDetails extends Page implements HasTable
                     if (!empty($userModuleCodes)) {
                         return $query->whereIn('module_code', $userModuleCodes);
                     } else {
-                        // If user has no modules, return empty result
-                        return $query->whereRaw('1 = 0');
+                        return $query->whereRaw('1 = 0'); // No modules => empty
                     }
                 })
             )
             ->columns([
-                TextColumn::make('timestamp')
-                    ->label('Time')
-                    ->dateTime(),
+                TextColumn::make('timestamp')->label('Time')->dateTime(),
                 TextColumn::make('module_code')
                     ->label('Module')
-                    ->formatStateUsing(function ($state) {
-                        // Show module name instead of code
-                        if ($state) {
-                            $module = \App\Models\Module::where('code', $state)->first();
-                            return $module ? $module->name : $state;
-                        }
-                        return '-';
-                    }),
-                TextColumn::make('document_id')
-                    ->label('Document'),
-                TextColumn::make('helpful')
-                    ->label('Helpful')
-                    ->formatStateUsing(fn ($state) => $state ? 'Yes' : 'No'),
-                TextColumn::make('duration_ms')
-                    ->label('Duration (ms)'),
+                    ->formatStateUsing(fn ($state) => $state
+                        ? (\App\Models\Module::where('code', $state)->first()?->name ?? $state)
+                        : '-'
+                    ),
+                TextColumn::make('document_id')->label('Document'),
+                TextColumn::make('user_message')->label('User Message')->wrap(),
+                TextColumn::make('agent_message')->label('Agent Message')->wrap(),
+                TextColumn::make('helpful')->label('Helpful')->formatStateUsing(fn ($state) => $state ? 'Yes' : 'No'),
+                TextColumn::make('duration_ms')->label('Duration (ms)'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('timeFilter')
@@ -79,8 +71,8 @@ class UserActivityDetails extends Page implements HasTable
                         '90days' => 'Last 90 Days',
                         '6months' => 'Last 6 Months',
                     ])
-                    ->default('7days')
-                    ->query(fn (Builder $query, array $data) => $data['value'] ? $query->where('timestamp', '>=', match ($data['value']) {
+                    ->default('7days') // default time filter
+                    ->query(fn (Builder $query, array $data) => $query->where('timestamp', '>=', match ($data['value']) {
                         '1day' => now()->subDay(),
                         '3days' => now()->subDays(3),
                         '5days' => now()->subDays(5),
@@ -89,8 +81,30 @@ class UserActivityDetails extends Page implements HasTable
                         '90days' => now()->subDays(90),
                         '6months' => now()->subMonths(6),
                         default => now()->subDays(7),
-                    }) : $query),
+                    })),
+
+                Tables\Filters\SelectFilter::make('moduleFilter')
+                    ->label('Module')
+                    ->options(function () {
+                        if (auth()->user()->is_admin) {
+                            return Module::orderBy('name')->pluck('name', 'code')->toArray();
+                        } else {
+                            $moduleCodes = \DB::table('module_user')
+                                ->where('user_id', auth()->id())
+                                ->pluck('module_code')
+                                ->toArray();
+
+                            return !empty($moduleCodes)
+                                ? Module::whereIn('code', $moduleCodes)->orderBy('name')->pluck('name', 'code')->toArray()
+                                : [];
+                        }
+                    })
+                    ->query(fn (Builder $query, array $data) =>
+                    !empty($data['value']) ? $query->where('module_code', $data['value']) : $query
+                    ),
             ])
+
             ->defaultSort('timestamp', 'desc');
     }
+
 }

@@ -124,7 +124,7 @@ class UserStatsOverview extends BaseWidget
                 ->descriptionIcon('heroicon-m-star')
                 ->color('warning'),
 
-            Stat::make('Most Queried Document', $mostQueriedDocument)
+            Stat::make('Most Queried Document ID', $mostQueriedDocument)
                 ->descriptionIcon('heroicon-m-document-text')
                 ->color('primary'),
 
