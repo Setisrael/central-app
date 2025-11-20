@@ -10,41 +10,37 @@ services:
         environment:
             APP_ENV: production
             APP_DEBUG: false
-            DB_CONNECTION: pgsql
-            DB_HOST: postgres
-            DB_PORT: 5432
+            DB_CONNECTION: mysql
+            DB_HOST: mariadb
+            DB_PORT: 3306
             DB_DATABASE: chatbot_dashboard
             DB_USERNAME: user
             DB_PASSWORD: password
         env_file:
             - .env
         depends_on:
-            postgres:
-                condition: service_healthy
+            - mariadb
         networks:
             - app-network
 
-    postgres:
-        image: postgres:latest
-        container_name: chatbot-postgres
+    mariadb:
+        image: mariadb:11
+        container_name: chatbot-mariadb
+        restart: unless-stopped
         environment:
-            POSTGRES_USER: user
-            POSTGRES_PASSWORD: password
-            POSTGRES_DB: chatbot_dashboard
+            MYSQL_ROOT_PASSWORD: rootpassword
+            MYSQL_DATABASE: chatbot_dashboard
+            MYSQL_USER: user
+            MYSQL_PASSWORD: password
         ports:
-            - "5432:5432"
+            - "3306:3306"
         volumes:
-            - postgres_data:/var/lib/postgresql/data
+            - mariadb_data:/var/lib/mysql
         networks:
             - app-network
-        healthcheck:
-            test: [ "CMD-SHELL", "pg_isready -U user -d chatbot_dashboard" ]
-            interval: 5s
-            timeout: 5s
-            retries: 5
 
 volumes:
-    postgres_data:
+    mariadb_data:
 
 networks:
     app-network:

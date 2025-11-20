@@ -41,7 +41,7 @@ class SystemPerformanceChart extends ChartWidget
 
         $metrics = $query->get();
 
-        // If no data, return empty chart
+        // No data → return empty chart
         if ($metrics->isEmpty()) {
             return [
                 'datasets' => [
@@ -50,12 +50,6 @@ class SystemPerformanceChart extends ChartWidget
                         'data' => [],
                         'borderColor' => 'rgb(59, 130, 246)',
                         'backgroundColor' => 'rgba(59, 130, 246, 0.1)',
-                    ],
-                    [
-                        'label' => 'RAM Usage (MB/10)',
-                        'data' => [],
-                        'borderColor' => 'rgb(16, 185, 129)',
-                        'backgroundColor' => 'rgba(16, 185, 129, 0.1)',
                     ],
                     [
                         'label' => 'Disk Usage (%)',
@@ -68,9 +62,10 @@ class SystemPerformanceChart extends ChartWidget
             ];
         }
 
-        // Group by time intervals based on time filter
+        // Group values depending on time filter
         $groupedMetrics = $metrics->groupBy(function ($metric) use ($timeFilter) {
-            $timestamp = \Carbon\Carbon::parse($metric->timestamp);
+            $timestamp = Carbon::parse($metric->timestamp);
+
             return match ($timeFilter) {
                 '1hour', '6hours' => $timestamp->format('H:i'),
                 '12hours', '24hours' => $timestamp->format('H:00'),
@@ -80,15 +75,13 @@ class SystemPerformanceChart extends ChartWidget
             };
         })->map(function ($group) {
             return [
-                'cpu' => $group->avg('cpu_usage'),
-                'ram' => $group->avg('ram_usage') / 10, // Scale down RAM for better visualization
+                'cpu'  => $group->avg('cpu_usage'),
                 'disk' => $group->avg('disk_usage'),
             ];
         });
 
         $labels = $groupedMetrics->keys()->toArray();
         $cpuData = $groupedMetrics->pluck('cpu')->toArray();
-        $ramData = $groupedMetrics->pluck('ram')->toArray();
         $diskData = $groupedMetrics->pluck('disk')->toArray();
 
         return [
@@ -98,12 +91,6 @@ class SystemPerformanceChart extends ChartWidget
                     'data' => $cpuData,
                     'borderColor' => 'rgb(59, 130, 246)',
                     'backgroundColor' => 'rgba(59, 130, 246, 0.1)',
-                ],
-                [
-                    'label' => 'RAM Usage (MB/10)',
-                    'data' => $ramData,
-                    'borderColor' => 'rgb(16, 185, 129)',
-                    'backgroundColor' => 'rgba(16, 185, 129, 0.1)',
                 ],
                 [
                     'label' => 'Disk Usage (%)',

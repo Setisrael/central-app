@@ -10,10 +10,8 @@ use Filament\Tables;
 use Filament\Tables\Contracts\HasTable;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Tables\Columns\TextColumn;
-use Filament\Tables\Filters\SelectFilter;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
-use Illuminate\Support\Facades\Log;
 use Livewire\Attributes\Url;
 
 class UserActivity extends Page implements HasTable
@@ -50,18 +48,18 @@ class UserActivity extends Page implements HasTable
 
     protected function getViewData(): array
     {
-        // Get modules based on user role using module_code
+        // Module basierend auf Rolle (per module_code)
         if (auth()->user()->is_admin) {
-            // Admin sees all modules
+            // Admin sieht alle Module
             $modules = Module::orderBy('name')->pluck('name', 'code')->toArray();
         } else {
-            // Non-admin sees only their assigned modules
+            // Nicht-Admin: nur eigene Module
             $moduleCodes = \DB::table('module_user')
                 ->where('user_id', auth()->id())
                 ->pluck('module_code')
                 ->toArray();
 
-            if (!empty($moduleCodes)) {
+            if (! empty($moduleCodes)) {
                 $modules = Module::whereIn('code', $moduleCodes)
                     ->orderBy('name')
                     ->pluck('name', 'code')
@@ -72,16 +70,16 @@ class UserActivity extends Page implements HasTable
         }
 
         return [
-            'timeFilter' => $this->timeFilter,
+            'timeFilter'   => $this->timeFilter,
             'moduleFilter' => $this->moduleFilter,
-            'modules' => ['all' => 'All Modules'] + $modules,
-            'timeOptions' => [
-                '1day' => 'Last 1 Day',
-                '3days' => 'Last 3 Days',
-                '5days' => 'Last 5 Days',
-                '7days' => 'Last 7 Days',
-                '30days' => 'Last 30 Days',
-                '90days' => 'Last 90 Days',
+            'modules'      => ['all' => 'All Modules'] + $modules,
+            'timeOptions'  => [
+                '1day'    => 'Last 1 Day',
+                '3days'   => 'Last 3 Days',
+                '5days'   => 'Last 5 Days',
+                '7days'   => 'Last 7 Days',
+                '30days'  => 'Last 30 Days',
+                '90days'  => 'Last 90 Days',
                 '6months' => 'Last 6 Months',
             ],
         ];
@@ -97,30 +95,30 @@ class UserActivity extends Page implements HasTable
                     ->selectRaw('COUNT(*) as total_requests')
                     ->selectRaw('SUM(prompt_tokens + completion_tokens) as total_tokens')
                     ->selectRaw('AVG(duration_ms) as avg_duration')
-                    ->selectRaw('SUM(CASE WHEN helpful THEN 1 ELSE 0 END)::float / NULLIF(COUNT(*), 0) * 100 as helpful_ratio')
-                    ->when(!auth()->user()->is_admin, function ($query) {
-                        // Apply user role restrictions using module_code
+                    // MariaDB-kompatible Berechnung der Helpful-Quote (0–100%)
+                    ->selectRaw('SUM(CASE WHEN helpful THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) as helpful_ratio')
+                    ->when(! auth()->user()->is_admin, function (Builder $query) {
+                        // Modul-Restriktion über module_code
                         $userModuleCodes = \DB::table('module_user')
                             ->where('user_id', auth()->id())
                             ->pluck('module_code')
                             ->toArray();
 
-                        if (!empty($userModuleCodes)) {
+                        if (! empty($userModuleCodes)) {
                             return $query->whereIn('module_code', $userModuleCodes);
-                        } else {
-                            // If user has no modules, return empty result
-                            return $query->whereRaw('1 = 0');
                         }
+
+                        // User ohne Module → leeres Ergebnis erzwingen
+                        return $query->whereRaw('1 = 0');
                     })
-                    ->when(MetricUsage::count() === 0, fn ($query) =>
-                    $query->selectRaw('NULL as student_id_hash, 0 as total_requests, 0 as total_tokens, 0 as avg_duration, 0 as helpful_ratio')
-                    )
             )
             ->columns([
                 TextColumn::make('student_id_hash')
                     ->label('Student')
                     ->searchable()
-                    ->url(fn ($record) => route('filament.pages.user-activity-details', ['student_id_hash' => $record->student_id_hash])),
+                    ->url(fn ($record) => route('filament.pages.user-activity-details', [
+                        'student_id_hash' => $record->student_id_hash,
+                    ])),
                 TextColumn::make('total_requests')
                     ->label('Requests')
                     ->sortable(),
@@ -135,57 +133,74 @@ class UserActivity extends Page implements HasTable
                 TextColumn::make('helpful_ratio')
                     ->label('Helpful %')
                     ->sortable()
-                    ->formatStateUsing(fn ($state) => number_format($state, 1) . '%'),
+                    ->formatStateUsing(fn ($state) => number_format((float) $state, 1) . '%'),
             ])
             ->filters([
                 Tables\Filters\SelectFilter::make('timeFilter')
                     ->label('Time Range')
                     ->options([
-                        '1day' => 'Last 1 Day',
-                        '3days' => 'Last 3 Days',
-                        '5days' => 'Last 5 Days',
-                        '7days' => 'Last 7 Days',
-                        '30days' => 'Last 30 Days',
-                        '90days' => 'Last 90 Days',
+                        '1day'    => 'Last 1 Day',
+                        '3days'   => 'Last 3 Days',
+                        '5days'   => 'Last 5 Days',
+                        '7days'   => 'Last 7 Days',
+                        '30days'  => 'Last 30 Days',
+                        '90days'  => 'Last 90 Days',
                         '6months' => 'Last 6 Months',
                     ])
-                    ->default('7days') // default time filter
-                    ->query(fn (Builder $query, array $data) => $query->where('timestamp', '>=', match ($data['value']) {
-                        '1day' => now()->subDay(),
-                        '3days' => now()->subDays(3),
-                        '5days' => now()->subDays(5),
-                        '7days' => now()->subDays(7),
-                        '30days' => now()->subDays(30),
-                        '90days' => now()->subDays(90),
-                        '6months' => now()->subMonths(6),
-                        default => now()->subDays(7),
-                    })),
+                    ->default('7days')
+                    ->query(function (Builder $query, array $data) {
+                        $value = $data['value'] ?? '7days';
+
+                        $from = match ($value) {
+                            '1day'    => now()->subDay(),
+                            '3days'   => now()->subDays(3),
+                            '5days'   => now()->subDays(5),
+                            '7days'   => now()->subDays(7),
+                            '30days'  => now()->subDays(30),
+                            '90days'  => now()->subDays(90),
+                            '6months' => now()->subMonths(6),
+                            default   => now()->subDays(7),
+                        };
+
+                        return $query->where('timestamp', '>=', $from);
+                    }),
 
                 Tables\Filters\SelectFilter::make('moduleFilter')
                     ->label('Module')
                     ->options(function () {
                         if (auth()->user()->is_admin) {
                             return Module::orderBy('name')->pluck('name', 'code')->toArray();
-                        } else {
-                            $moduleCodes = \DB::table('module_user')
-                                ->where('user_id', auth()->id())
-                                ->pluck('module_code')
-                                ->toArray();
-
-                            return !empty($moduleCodes)
-                                ? Module::whereIn('code', $moduleCodes)->orderBy('name')->pluck('name', 'code')->toArray()
-                                : [];
                         }
+
+                        $moduleCodes = \DB::table('module_user')
+                            ->where('user_id', auth()->id())
+                            ->pluck('module_code')
+                            ->toArray();
+
+                        return ! empty($moduleCodes)
+                            ? Module::whereIn('code', $moduleCodes)
+                                ->orderBy('name')
+                                ->pluck('name', 'code')
+                                ->toArray()
+                            : [];
                     })
-                    ->query(fn (Builder $query, array $data) =>
-                    !empty($data['value']) ? $query->where('module_code', $data['value']) : $query
-                    ),
+                    ->query(function (Builder $query, array $data) {
+                        $value = $data['value'] ?? null;
+
+                        if (! empty($value)) {
+                            return $query->where('module_code', $value);
+                        }
+
+                        return $query;
+                    }),
             ])
             ->defaultSort('total_requests', 'desc')
             ->actions([
                 Tables\Actions\Action::make('view')
                     ->label('View Details')
-                    ->url(fn ($record) => route('filament.pages.user-activity-details', ['student_id_hash' => $record->student_id_hash]))
+                    ->url(fn ($record) => route('filament.pages.user-activity-details', [
+                        'student_id_hash' => $record->student_id_hash,
+                    ]))
                     ->icon('heroicon-o-eye'),
             ])
             ->bulkActions([]);
