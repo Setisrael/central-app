@@ -5,57 +5,60 @@ namespace App\Http\Controllers\API;
 use App\Http\Controllers\Controller;
 use App\Models\ChatbotInstance;
 use App\Models\Module;
-use Illuminate\Http\Request;
 use App\Models\MetricUsage;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
-use Illuminate\Support\Facades\Validator;
-
-
+use Illuminate\Support\Carbon;
 
 class MetricUsageController extends Controller
 {
     public function store(Request $request)
     {
-        $data = $request->input('data') ?? [$request->all()];
+        $data  = $request->input('data') ?? [$request->all()];
         $saved = [];
-// added when trying to add modules to payload
 
-        if ($request->has('modules') && isset($data[0]['chatbot_instance_id'])) {
-            $chatbot = ChatbotInstance::find($data[0]['chatbot_instance_id']);
+        // Module-Sync, falls mitgesendet
+        if ($request->has('modules') && isset($data[0]['lookup']['chatbot_instance_id'])) {
+            $chatbotId = $data[0]['lookup']['chatbot_instance_id'];
+            $chatbot   = ChatbotInstance::find($chatbotId);
 
             if ($chatbot) {
                 $moduleCodes = collect($request->modules)->map(function ($module) {
-                    // Create or update the module
+                    // Chatbot sendet ref_id (int) -> zentrale DB speichert es in code (int)
                     Module::firstOrCreate(
                         ['code' => $module['ref_id']],
                         ['name' => $module['name']]
                     );
 
-                    // Return the code for syncing
                     return $module['ref_id'];
                 });
 
                 Log::info('Modules synced for chatbot', [
-                    'chatbot_id' => $chatbot->id,
-                    'module_codes' => $moduleCodes->toArray()
+                    'chatbot_id'   => $chatbot->id,
+                    'module_codes' => $moduleCodes->toArray(),
                 ]);
             }
-        }// ends here
+        }
+
         foreach ($data as $entry) {
-            $lookup = $entry['lookup'] ?? null;
+            $lookup  = $entry['lookup'] ?? null;
             $payload = $entry['data'] ?? null;
 
-            if (!$lookup || !$payload) {
-                Log::warning('Missing lookup or data structure in usage payload');
+            if (! $lookup || ! $payload) {
+                Log::warning('Missing lookup or data structure in usage payload', [
+                    'entry' => $entry,
+                ]);
                 continue;
             }
 
-            $validator = validator(array_merge($lookup, $payload), [
+            $merged = array_merge($lookup, $payload);
+
+            $validator = validator($merged, [
                 'chatbot_instance_id' => 'required|integer|exists:chatbot_instances,id',
                 'conversation_id'     => 'required|string',
                 'message_id'          => 'required|integer',
                 'agent_id'            => 'nullable|integer',
-                'module_code'         => 'nullable|integer|exists:modules,code',
+                'module_code'         => 'nullable|integer|exists:modules,code', // <--- zentrale modules.code
                 'user_message'        => 'nullable|string',
                 'agent_message'       => 'nullable|string',
                 'embedding_id'        => 'nullable|string',
@@ -78,27 +81,41 @@ class MetricUsageController extends Controller
             if ($validator->fails()) {
                 Log::warning('Validation failed for metric', [
                     'errors' => $validator->errors()->toArray(),
-                    'data' => array_merge($lookup, $payload)
+                    'data'   => $merged,
                 ]);
-                continue; // Continue processing other entries instead of returning error
+                continue;
             }
 
             $validated = $validator->validated();
 
-            $saved[] = MetricUsage::updateOrCreate(
-                [
-                    'chatbot_instance_id' => $lookup['chatbot_instance_id'],
-                    'conversation_id'     => $lookup['conversation_id'],
-                    'message_id'          => $lookup['message_id'],
-                ],
-                $payload
-            );
+            // ISO-8601 Timestamp -> Carbon -> MariaDB-kompatibel
+            try {
+                $validated['timestamp'] = Carbon::parse($validated['timestamp']);
+            } catch (\Throwable $e) {
+                Log::warning('MetricUsage timestamp parse failed, using now()', [
+                    'original' => $merged['timestamp'] ?? null,
+                    'error'    => $e->getMessage(),
+                ]);
+                $validated['timestamp'] = now();
+            }
+
+            // Schlüssel zum Identifizieren des Eintrags (für updateOrCreate)
+            $attributes = [
+                'chatbot_instance_id' => $validated['chatbot_instance_id'],
+                'conversation_id'     => $validated['conversation_id'],
+                'message_id'          => $validated['message_id'],
+            ];
+
+            // Werte, die gespeichert/aktualisiert werden (inkl. module_code, timestamp, etc.)
+            $values = $validated;
+
+            $saved[] = MetricUsage::updateOrCreate($attributes, $values);
         }
 
         return response()->json([
-            'message' => ' Stored',
-            'count' => count($saved),
-            'ids' => collect($saved)->pluck('id'),
+            'message' => 'Stored',
+            'count'   => count($saved),
+            'ids'     => collect($saved)->pluck('id'),
         ], 201);
     }
 }

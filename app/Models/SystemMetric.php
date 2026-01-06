@@ -19,16 +19,17 @@ class SystemMetric extends Model
         'timestamp',
     ];
 
+    protected $casts = [
+        'timestamp' => 'datetime',
+    ];
+
     public function chatbotUser()
     {
         return $this->belongsTo(User::class, 'user_id');
     }
 
-    //added when removing chatbots as users
     public function chatbotInstance()
     {
         return $this->belongsTo(ChatbotInstance::class);
     }
-
 }
-

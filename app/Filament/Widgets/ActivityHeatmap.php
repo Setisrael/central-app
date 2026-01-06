@@ -4,194 +4,246 @@ namespace App\Filament\Widgets;
 
 use App\Models\MetricUsage;
 use App\Models\Module;
-use Filament\Widgets\ChartWidget;
+use Filament\Widgets\Widget;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
-class ActivityHeatmap extends ChartWidget
+class ActivityHeatmap extends Widget
 {
-    protected static ?string $heading = 'Activity by Day and Hour';
-    protected static ?string $pollingInterval = null;
-    protected static ?string $maxHeight = '400px';
-    protected static bool $isLazy = false;
+    protected static string $view = 'filament.pages.activity-heatmap';
 
     public string $timeFilter = '90days';
     public string $moduleFilter = 'all';
 
-    public function mount($timeFilter = '90days', $moduleFilter = 'all'): void
+    protected function getViewData(): array
     {
-        $this->timeFilter = $timeFilter;
-        $this->moduleFilter = $moduleFilter;
+        [$weeks, $monthLabels, $maxCount, $hasData] = $this->buildCalendarData();
+
+        return [
+            'weeks'       => $weeks,
+            'monthLabels' => $monthLabels,
+            'maxCount'    => $maxCount,
+            'hasData'     => $hasData,
+            'description' => $this->getDescription(),
+        ];
     }
 
-    protected function getData(): array
+    /**
+     * GitHub-artiger Kalender mit DYNAMISCHEM Zeitraum:
+     * - Zeigt nur Wochen von erster bis letzter Aktivität (keine leeren Monate!)
+     * - Adaptive Farbskala: Dunkler bei niedrigem maxCount
+     * - Korrekte Monatszuordnung: Labels basieren auf Montag der Woche
+     *
+     * Wissenschaftliche Fundierung:
+     * - Cleveland & McGill (1984): Heatmaps brauchen Datendichte
+     * - Tufte (2001): Maximize Data-Ink Ratio, minimize empty space
+     * - Ifenthaler et al. (2017): Temporal Activity Patterns in Learning Analytics
+     */
+    protected function buildCalendarData(): array
     {
-        $from = match ($this->timeFilter) {
-            '1day'    => now()->subDay(),
-            '3days'   => now()->subDays(3),
-            '5days'   => now()->subDays(5),
-            '7days'   => now()->subDays(7),
-            '30days'  => now()->subDays(30),
-            '90days'  => now()->subDays(90),
-            '6months' => now()->subMonths(6),
-            default   => now()->subDays(90),
-        };
+        $baseQuery = $this->getBaseQuery();
 
-        // Basis-Query
-        $query = MetricUsage::query()->where('timestamp', '>=', $from);
+        $firstActivity = (clone $baseQuery)->min('timestamp');
+        $lastActivity  = (clone $baseQuery)->max('timestamp');
 
-        // Rollenbasierte Einschränkung per module_code
-        if (! auth()->user()->is_admin) {
-            $userModuleCodes = \DB::table('module_user')
+        if (!$firstActivity || !$lastActivity) {
+            return [[], [], 0, false];
+        }
+
+        [$filterFrom, $filterTo] = $this->getDateRangeFromFilter();
+
+        $from = Carbon::parse($firstActivity)->max($filterFrom);
+        $to   = Carbon::parse($lastActivity)->min($filterTo);
+
+        $rows = (clone $baseQuery)
+            ->whereBetween('timestamp', [$from, $to])
+            ->get(['timestamp']);
+
+        Log::debug('ActivityHeatmap calendar query', [
+            'firstActivity' => $firstActivity,
+            'lastActivity'  => $lastActivity,
+            'from'          => $from->toDateString(),
+            'to'            => $to->toDateString(),
+            'rowCount'      => $rows->count(),
+            'timeFilter'    => $this->timeFilter,
+            'moduleFilter'  => $this->moduleFilter,
+        ]);
+
+        $countsByDate = [];
+        foreach ($rows as $row) {
+            $date = Carbon::parse($row->timestamp)->toDateString();
+            $countsByDate[$date] = ($countsByDate[$date] ?? 0) + 1;
+        }
+
+        $maxCount = !empty($countsByDate) ? max($countsByDate) : 0;
+
+        $startDate = $from->copy()->startOfWeek(Carbon::MONDAY);
+        $endDate   = $to->copy()->endOfWeek(Carbon::SUNDAY);
+
+        $weeks         = [];
+        $monthLabels   = [];
+        $current       = $startDate->copy();
+        $weekIndex     = 0;
+        $previousMonth = null;
+
+        while ($current <= $endDate) {
+            $week = [];
+
+            // KORRIGIERT: Prüfe ERSTEN TAG der Woche (Montag!)
+            $firstDayOfWeek = $current->copy();
+
+            // KORRIGIERT: Label nur wenn DIESER Montag in neuem Monat ist!
+            if ($firstDayOfWeek->month !== $previousMonth) {
+                $monthLabels[$weekIndex] = $firstDayOfWeek->format('M'); // "Jun", "Jul", etc.
+                $previousMonth = $firstDayOfWeek->month;
+            }
+
+            for ($i = 0; $i < 7; $i++) {
+                $date    = $current->copy();
+                $dateStr = $date->toDateString();
+                $count   = $countsByDate[$dateStr] ?? 0;
+                $color   = $this->colorClass($count, $maxCount);
+                $tooltip = $this->formatTooltip($date, $count);
+
+                $week[] = [
+                    'date'    => $dateStr,
+                    'day_iso' => $date->dayOfWeekIso,
+                    'count'   => $count,
+                    'color'   => $color,
+                    'tooltip' => $tooltip,
+                ];
+
+                $current->addDay();
+            }
+
+            $weeks[] = $week;
+            $weekIndex++;
+        }
+
+        Log::debug('ActivityHeatmap result', [
+            'weekCount'   => count($weeks),
+            'monthLabels' => $monthLabels,
+            'firstWeek'   => $weeks[0][0]['date'] ?? null,
+            'lastWeek'    => $weeks[count($weeks)-1][0]['date'] ?? null,
+        ]);
+
+        return [$weeks, $monthLabels, $maxCount, true];
+    }
+
+    protected function getBaseQuery()
+    {
+        $query = MetricUsage::query();
+
+        if (!auth()->user()->is_admin) {
+            $userModuleCodes = DB::table('module_user')
                 ->where('user_id', auth()->id())
                 ->pluck('module_code')
                 ->toArray();
 
-            if (! empty($userModuleCodes)) {
+            if (!empty($userModuleCodes)) {
                 $query->whereIn('module_code', $userModuleCodes);
             } else {
-                // User hat keine Module → leeres Resultat erzwingen
                 $query->whereRaw('1 = 0');
             }
         }
 
-        // Modulfilter
         if ($this->moduleFilter !== 'all') {
             $query->where('module_code', $this->moduleFilter);
         }
 
-        Log::debug('ActivityHeatmap query', [
-            'sql'          => $query->toSql(),
-            'bindings'     => $query->getBindings(),
-            'timeFilter'   => $this->timeFilter,
-            'moduleFilter' => $this->moduleFilter,
-        ]);
+        return $query;
+    }
 
-        // MariaDB-kompatibles Grouping nach Wochentag und Stunde
-        $raw = $query
-            ->selectRaw('DAYOFWEEK(`timestamp`) - 1 as day_of_week, HOUR(`timestamp`) as hour, COUNT(*) as count')
-            ->groupBy('day_of_week', 'hour')
-            ->orderBy('day_of_week')
-            ->orderBy('hour')
-            ->get();
+    protected function getDateRangeFromFilter(): array
+    {
+        $to = now()->endOfDay();
 
-        // 0 = Sonntag, 1 = Montag, ... 6 = Samstag (entsprechend DAYOFWEEK()-1)
-        $days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        $hours = range(0, 23);
-        $datasets = [];
+        $from = match ($this->timeFilter) {
+            '1day'    => $to->copy()->subDays(1),
+            '3days'   => $to->copy()->subDays(3),
+            '5days'   => $to->copy()->subDays(5),
+            '7days'   => $to->copy()->subDays(7),
+            '30days'  => $to->copy()->subDays(30),
+            '90days'  => $to->copy()->subDays(90),
+            '6months' => $to->copy()->subMonths(6),
+            default   => $to->copy()->subDays(90),
+        };
 
-        // Für jede Wochentag ein Dataset
-        foreach ($days as $dayIndex => $day) {
-            $data = [];
+        return [$from->startOfDay(), $to];
+    }
 
-            foreach ($hours as $hour) {
-                $entry = $raw
-                    ->where('day_of_week', $dayIndex)
-                    ->where('hour', $hour)
-                    ->first();
+    /**
+     * INLINE-STYLES VERSION: Returns HEX colors instead of Tailwind classes
+     * This bypasses Tailwind purge issues completely!
+     *
+     * ADAPTIVE Farbklasse abhängig von Aktivität + maxCount.
+     * Für niedrige Counts (< 10): Dunklere Farben für bessere Sichtbarkeit
+     * Für hohe Counts (>= 10): GitHub-Style Quartile
+     */
+    protected function colorClass(int $count, int $maxCount): string
+    {
+        if ($count === 0 || $maxCount === 0) {
+            return '#e5e7eb'; // gray-200
+        }
 
-                // Null-sicherer Zugriff
-                $count = $entry?->count ?? 0;
-                $data[] = (int) $count;
+        // ADAPTIVE FARBSKALA für niedrige Counts
+        if ($maxCount < 10) {
+            if ($count === 1) {
+                return '#86efac'; // green-300
             }
 
-            // Farbgenerierung pro Tag
-            $hue = ($dayIndex * 51) % 360;
+            $ratio = $count / $maxCount;
 
-            $datasets[] = [
-                'label'           => $day,
-                'data'            => $data,
-                'backgroundColor' => "hsla({$hue}, 70%, 60%, 0.7)",
-                'borderColor'     => "hsla({$hue}, 70%, 50%, 1)",
-                'borderWidth'     => 1,
-            ];
-        }
-
-        // Wenn gar keine Datasets zustande kommen (theoretisch)
-        if (empty($datasets)) {
-            return [
-                'labels'   => array_map(fn ($h) => sprintf('%02d:00', $h), $hours),
-                'datasets' => [[
-                    'label'           => 'No Activity',
-                    'data'            => array_fill(0, 24, 0),
-                    'backgroundColor' => 'rgba(156, 163, 175, 0.3)',
-                    'borderColor'     => 'rgba(156, 163, 175, 0.5)',
-                    'borderWidth'     => 1,
-                ]],
-            ];
-        }
-
-        // Prüfen, ob in allen Datasets nur Nullen sind
-        $hasData = false;
-        foreach ($datasets as $dataset) {
-            if (array_sum($dataset['data']) > 0) {
-                $hasData = true;
-                break;
+            if ($ratio < 0.33) {
+                return '#4ade80'; // green-400
             }
+            if ($ratio < 0.66) {
+                return '#16a34a'; // green-600
+            }
+            return '#14532d'; // green-800
         }
 
-        if (! $hasData) {
-            return [
-                'labels'   => array_map(fn ($h) => sprintf('%02d:00', $h), $hours),
-                'datasets' => [[
-                    'label'           => 'No Activity',
-                    'data'            => array_fill(0, 24, 0),
-                    'backgroundColor' => 'rgba(156, 163, 175, 0.3)',
-                    'borderColor'     => 'rgba(156, 163, 175, 0.5)',
-                    'borderWidth'     => 1,
-                ]],
-            ];
+        // Standard GitHub-Style Quartile für hohe Counts
+        if ($maxCount <= 1) {
+            return '#86efac'; // green-300
         }
 
-        return [
-            'labels'   => array_map(fn ($h) => sprintf('%02d:00', $h), $hours),
-            'datasets' => $datasets,
-        ];
+        $ratio = $count / $maxCount;
+
+        if ($ratio < 0.25) {
+            return '#dcfce7'; // green-100
+        }
+        if ($ratio < 0.5) {
+            return '#86efac'; // green-300
+        }
+        if ($ratio < 0.75) {
+            return '#22c55e'; // green-500
+        }
+        return '#15803d'; // green-700
     }
 
-    protected function getType(): string
+    protected function formatTooltip(Carbon $date, int $count): string
     {
-        return 'bar';
+        $formattedDate = $date->toFormattedDateString();
+
+        if ($count === 0) {
+            return "No queries on {$formattedDate}";
+        }
+
+        if ($count === 1) {
+            return "1 query on {$formattedDate}";
+        }
+
+        return "{$count} queries on {$formattedDate}";
     }
 
-    protected function getOptions(): ?array
-    {
-        return [
-            'responsive'          => true,
-            'maintainAspectRatio' => false,
-            'scales'              => [
-                'x' => [
-                    'title' => [
-                        'display' => true,
-                        'text'    => 'Hour of Day',
-                    ],
-                ],
-                'y' => [
-                    'title' => [
-                        'display' => true,
-                        'text'    => 'Number of Queries',
-                    ],
-                    'beginAtZero' => true,
-                ],
-            ],
-            'plugins'             => [
-                'legend' => [
-                    'display'  => true,
-                    'position' => 'top',
-                ],
-                'title'  => [
-                    'display' => true,
-                    'text'    => 'Student Activity Patterns by Day and Hour',
-                ],
-            ],
-        ];
-    }
-
-    public function getDescription(): ?string
+    protected function getDescription(): string
     {
         $moduleName = 'All Modules';
 
         if ($this->moduleFilter !== 'all') {
-            $module = Module::where('code', $this->moduleFilter)->first();
+            $module     = Module::where('code', $this->moduleFilter)->first();
             $moduleName = $module ? $module->name : 'Unknown Module';
         }
 
@@ -206,6 +258,6 @@ class ActivityHeatmap extends ChartWidget
             default   => 'Last 90 Days',
         };
 
-        return "📊 {$timeLabel} • 📚 {$moduleName}";
+        return "📅 {$timeLabel} • 📚 {$moduleName}";
     }
 }

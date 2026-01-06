@@ -76,6 +76,7 @@
         <div>
             @livewire(\App\Filament\Widgets\ActivityHeatmap::class, ['timeFilter' => $timeFilter, 'moduleFilter' => $moduleFilter], key('heatmap-'.$timeFilter.'-'.$moduleFilter))
         </div>
+
     </div>
 
     {{-- Table Section --}}

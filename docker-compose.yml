@@ -1,46 +1,45 @@
 version: '3.8'
 
 services:
-    centralapp:
-        image: registry.git.fh-aachen.de/im3041s/zentrale-anwendung
-        container_name: centralapp
-        restart: unless-stopped
-        ports:
-            - "8000:80"
-        environment:
-            APP_ENV: production
-            APP_DEBUG: false
-            DB_CONNECTION: mysql
-            DB_HOST: mariadb
-            DB_PORT: 3306
-            DB_DATABASE: chatbot_dashboard
-            DB_USERNAME: user
-            DB_PASSWORD: password
-        env_file:
-            - .env
-        depends_on:
-            - mariadb
-        networks:
-            - app-network
+ #   centralapp:
+  #      image: registry.git.fh-aachen.de/im3041s/zentrale-anwendung
+  #      container_name: centralapp
+ #       restart: unless-stopped
+  #      ports:
+   #         - "8000:80"
+ #       environment:
+ #           APP_ENV: production
+ #           APP_DEBUG: false
+ #           DB_CONNECTION: mysql
+#            DB_HOST: postgres
+ #           DB_PORT: 5432
+ #           DB_DATABASE: chatbot_dashboard
+#            DB_USERNAME: user
+ #           DB_PASSWORD: password
+ #       env_file:
+  #          - .env
+   #     depends_on:
+   #         - postgres
+  #      networks:
+  #          - app-network
 
     mariadb:
-        image: mariadb:11
-        container_name: chatbot-mariadb
+        image: postgres:latest
+        container_name: chatbot-postgres
         restart: unless-stopped
         environment:
-            MYSQL_ROOT_PASSWORD: rootpassword
-            MYSQL_DATABASE: chatbot_dashboard
-            MYSQL_USER: user
-            MYSQL_PASSWORD: password
+            POSTGRES_USER: user
+            POSTGRES_PASSWORD: password
+            POSTGRES_DB: chatbot_dashboard
         ports:
-            - "3306:3306"
+            - "5432:5432"
         volumes:
-            - mariadb_data:/var/lib/mysql
+            - postgres_data:/var/lib/postgresql/data
         networks:
             - app-network
 
 volumes:
-    mariadb_data:
+    postgres_data:
 
 networks:
     app-network:

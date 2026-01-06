@@ -48,7 +48,11 @@
     {{-- Charts --}}
     <div class="grid grid-cols-1 md:grid-cols-1 gap-6 mt-4">
         <div class="mt-6">
-            @livewire(\App\Filament\Widgets\AnswerQualityOverview::class, ['timeFilter' => $timeFilter, 'moduleFilter' => $moduleFilter], key('quality-'.$timeFilter.'-'.$moduleFilter))
+            @livewire(
+            \App\Filament\Widgets\AnswerQualityOverview::class,
+            ['timeFilter' => $timeFilter, 'moduleFilter' => $moduleFilter],
+            key('quality-'.$timeFilter.'-'.$moduleFilter)
+            )
         </div>
         <div class="overflow-x-auto">
             @livewire(\App\Filament\Widgets\RequestChart::class)
@@ -65,18 +69,30 @@
                 <th class="p-2">Requests</th>
                 <th class="p-2">Tokens</th>
                 <th class="p-2">Avg Response Time</th>
+                <th class="p-2">Error Rate</th> {{-- NEU --}}
                 <th class="p-2">Trend</th>
             </tr>
             </thead>
             <tbody>
             @foreach ($metricsForTable->groupBy('module_code') as $moduleCode => $group)
                 @php
-                    // FIXED: Use module_code instead of module_id
-                    $module = \App\Models\Module::where('code', $moduleCode)->first();
+                    // Modul nur suchen, wenn der Code wirklich gesetzt ist
+                    $module = null;
+                    if ($moduleCode !== null && $moduleCode !== '') {
+                        $module = \App\Models\Module::where('code', $moduleCode)->first();
+                    }
+
                     $totalRequests = $group->count();
                     $totalTokens = $group->sum('prompt_tokens') + $group->sum('completion_tokens');
                     $avgLatency = $group->avg('latency_ms') / 1000;
-                    // FIXED: Use module_code for trends lookup
+
+                    // Error Rate: alles, was nicht 'ok' ist
+                    $failedRequests = $group->where('status', '!=', 'ok')->count();
+                    $errorRate = $totalRequests > 0
+                        ? round(($failedRequests / $totalRequests) * 100, 1)
+                        : 0.0;
+
+                    // Trend-Daten per module_code
                     $trendData = $trends[$moduleCode] ?? [
                         'trend' => 'flat',
                         'percentage_change' => '0',
@@ -85,10 +101,15 @@
                     ];
                 @endphp
                 <tr>
-                    <td class="p-2">{{ $module?->name ?? 'Unknown (Code: ' . $moduleCode . ')' }}</td>
+                    <td class="p-2">
+                        {{ $module?->name ?? 'Unknown (Code: ' . ($moduleCode ?? 'n/a') . ')' }}
+                    </td>
                     <td class="p-2">{{ $totalRequests }}</td>
                     <td class="p-2">{{ number_format($totalTokens / 1000, 2) }}K</td>
                     <td class="p-2">{{ number_format($avgLatency, 2) }}s</td>
+                    <td class="p-2">
+                        {{ number_format($errorRate, 1) }}%
+                    </td>
                     <td class="p-2">
                         @if ($trendData['trend'] === 'up')
                             <x-heroicon-o-arrow-trending-up class="w-5 h-5 text-green-500 inline" />

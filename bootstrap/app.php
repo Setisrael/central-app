@@ -13,13 +13,7 @@ return Application::configure(basePath: dirname(__DIR__))
        // apiPrefix: '/api' //hinzugefügt
     )
     ->withMiddleware(function (Middleware $middleware) {
-      /*  //
-        $middleware->alias([
-            'auth:sanctum' => \Laravel\Sanctum\Http\Middleware\EnsureFrontendRequestsAreStateful::class,
-        ]);
 
-        $middleware->append(\App\Http\Middleware\CustomizeSanctumResponses::class);
-       // $middleware->redirectGuestsTo('/auth/login');*/
     })
     ->withExceptions(function (Exceptions $exceptions) {
         //
